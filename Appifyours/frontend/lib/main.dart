@@ -1669,6 +1669,8 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
+     // Replace the ImageSliderWidget case (around line 1760-1900) with this fixed version:
+
       case 'ImageSliderWidget':
         // Dynamic ImageSlider Widget - fetch from API like web preview
         final height = double.tryParse(props['height']?.toString() ?? '150') ?? 150.0;
