@@ -1919,7 +1919,8 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-          );
+          ),
+        );
 
       default:
         return const SizedBox.shrink();
