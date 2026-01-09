@@ -4,24 +4,19 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-
-// Define Environment class locally to resolve import error
-class Environment {
-  static String get apiBase => 'http://10.27.148.1:5000';
-}
+import 'package:frontend/config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
-    return '\$currency\$${price.toStringAsFixed(2)}';
+    return '$currency\${price.toStringAsFixed(2)}';
   }
   
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
   
@@ -37,17 +32,6 @@ class PriceUtils {
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
-  }
-
-  // Added missing method
-  static String currencySymbolFromCode(String code) {
-    switch (code.toLowerCase()) {
-      case 'usd': return '\$';
-      case 'inr': return '₹';
-      case 'eur': return '€';
-      case 'gbp': return '£';
-      default: return '\$';
-    }
   }
   
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
@@ -67,14 +51,6 @@ class PriceUtils {
   }
 }
 
-// AuthHelper class added
-class AuthHelper {
-  static Future<bool> isAdmin() async {
-    // Placeholder logic
-    return false;
-  }
-}
-
 // Cart item model
 class CartItem {
   final String id;
@@ -83,8 +59,7 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  final String currencySymbol; // Added currencySymbol
-
+  
   CartItem({
     required this.id,
     required this.name,
@@ -92,7 +67,6 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
-    this.currencySymbol = '\$', // Default value
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -180,10 +154,6 @@ class CartManager extends ChangeNotifier {
   double get finalTotalWithShipping {
     return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
   }
-
-  // Added missing getters
-  int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
-  String get displayCurrencySymbol => '\$';
 }
 
 // Wishlist item model
@@ -201,7 +171,7 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '\$',
+    this.currencySymbol = '$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -244,13 +214,13 @@ class WishlistManager extends ChangeNotifier {
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '\$gstNumber';
-final String selectedCategory = '\$selectedCategory';
+final String gstNumber = '$gstNumber';
+final String selectedCategory = '$selectedCategory';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '\${storeInfo[\'storeName\'] ?? \'My Store\'}',
-  'address': '\${storeInfo[\'address\'] ?? \'123 Main St\'}',
-  'email': '\${storeInfo[\'email\'] ?? \'support@example.com\'}',
-  'phone': '\${storeInfo[\'phone\'] ?? \'(123) 456-7890\'}',
+  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
+  'address': '${storeInfo['address'] ?? '123 Main St'}',
+  'email': '${storeInfo['email'] ?? 'support@example.com'}',
+  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -292,11 +262,11 @@ class DynamicAppSync {
         'timeout': 5000,
       };
 
-      _socket = IO.io('\$apiBase/real-time-updates', options);
+      _socket = IO.io('$apiBase/real-time-updates', options);
       _setupSocketListeners();
       
     } catch (e) {
-      print('DynamicAppSync: Error connecting: \$e');
+      print('DynamicAppSync: Error connecting: $e');
     }
   }
 
@@ -318,7 +288,7 @@ class DynamicAppSync {
     });
 
     _socket!.on('dynamic-update', (data) {
-      print('DynamicAppSync: Received update: \$data');
+      print('DynamicAppSync: Received update: $data');
       if (!_updateController.isClosed) {
         _updateController.add(Map<String, dynamic>.from(data));
       }
@@ -351,9 +321,101 @@ class DynamicAppSync {
   }
 }
 
-// Removed global loadDynamicProductData, startRealTimeUpdates, initState, dispose
-// as they were causing "Method not found: setState" errors at top level.
-// Dynamic data loading is handled within _HomePageState.
+// Function to load dynamic product data from backend
+Future<void> loadDynamicProductData() async {
+  try {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    
+    // Get dynamic admin ID
+    final adminId = await AdminManager.getCurrentAdminId();
+    print('🔍 Loading dynamic data with admin ID: ${adminId}');
+    
+    final response = await http.get(
+      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['success'] == true && data['pages'] != null) {
+        final pages = data['pages'] as List;
+        final newProducts = <Map<String, dynamic>>[];
+        
+        // Extract products from all widgets
+        for (var page in pages) {
+          if (page['widgets'] != null) {
+            for (var widget in page['widgets']) {
+              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
+                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
+                newProducts.addAll(products);
+              }
+            }
+          }
+        }
+        
+        setState(() {
+          productCards = newProducts;
+          isLoading = false;
+        });
+        
+        print('✅ Loaded ${productCards.length} dynamic products');
+      } else {
+        throw Exception('Invalid response format');
+      }
+    } else {
+      throw Exception('HTTP ${response.statusCode}');
+    }
+  } catch (e) {
+    print('❌ Error loading dynamic data: $e');
+    setState(() {
+      errorMessage = e.toString();
+      isLoading = false;
+    });
+  }
+}
+
+// Real-time updates with WebSocket
+final DynamicAppSync _appSync = DynamicAppSync();
+StreamSubscription? _updateSubscription;
+
+void startRealTimeUpdates() async {
+  final adminId = await AdminManager.getCurrentAdminId();
+  if (adminId != null) {
+    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
+    
+    _updateSubscription = _appSync.updates.listen((update) {
+      if (!mounted) return;
+      
+      final type = update['type']?.toString().toLowerCase();
+      print('📱 Received real-time update: $type');
+      
+      switch (type) {
+        case 'home-page':
+        case 'dynamic-update':
+          loadDynamicProductData();
+          break;
+      }
+    });
+  }
+}
+
+@override
+void initState() {
+  super.initState();
+  loadDynamicProductData();
+  startRealTimeUpdates();
+}
+
+@override
+void dispose() {
+  _updateSubscription?.cancel();
+  _appSync.dispose();
+  super.dispose();
+}
+
 
 void main() => runApp(const MyApp());
 
@@ -373,11 +435,10 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      // Fixed CardThemeData to CardTheme
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         elevation: 4,
         shadowColor: Colors.black12,
-        shape: const RoundedRectangleBorder(
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
@@ -420,8 +481,8 @@ class SessionManager {
     required String loadedAppName,
   }) async {
     appName = loadedAppName;
-    print('🔍 Admin config loaded: \$loadedAppName');
-    print('🎨 App name set globally: \${SessionManager.appName}');
+    print('🔍 Admin config loaded: $loadedAppName');
+    print('🎨 App name set globally: ${SessionManager.appName}');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_name', appName);
@@ -433,8 +494,8 @@ class SessionManager {
   }) async {
     currentUserId = userId;
     authToken = token;
-    print('✅ User logged in: \$userId');
-    print('🔐 Session bound to userId: \$userId');
+    print('✅ User logged in: $userId');
+    print('🔐 Session bound to userId: $userId');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -457,7 +518,7 @@ class AdminManager {
     );
 
     _currentAdminId = adminId;
-    print('✅ Admin ID locked: \$adminId');
+    print('✅ Admin ID locked: $adminId');
     return adminId;
   }
   
@@ -480,7 +541,7 @@ class AdminManager {
         }
       }
     } catch (e) {
-      print('Auto-detection failed: \$e');
+      print('Auto-detection failed: $e');
     }
     return null;
   }
@@ -512,11 +573,11 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Splash screen using admin ID: \${adminId}');
+      print('🔍 Splash screen using admin ID: ${adminId}');
 
       // Load admin splash config for this fixed adminId
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/admin/splash?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
       );
       
       if (response.statusCode == 200) {
@@ -527,10 +588,10 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _appName = SessionManager.appName;
           });
-          print('✅ Splash screen loaded app name: \$_appName');
+          print('✅ Splash screen loaded app name: ${_appName}');
         }
       } else {
-        print('⚠️ Splash screen API error: \${response.statusCode}');
+        print('⚠️ Splash screen API error: ${response.statusCode}');
         if (mounted) {
           setState(() {
             _appName = SessionManager.appName;
@@ -538,7 +599,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: \${e}');
+      print('Error fetching app name: ${e}');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -810,11 +871,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validateEmail(String email) {
-    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}\$').hasMatch(email);
+    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}$').hasMatch(email);
   }
 
   bool _validatePhone(String phone) {
-    return RegExp(r'^[0-9]{10}\$').hasMatch(phone);
+    return RegExp(r'^[0-9]{10}$').hasMatch(phone);
   }
 
   bool _validatePassword(String password) {
@@ -861,7 +922,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('\${Environment.apiBase}/api/signup'),
+        Uri.parse('${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'firstName': firstName,
@@ -1017,6 +1078,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     : const Text('Create Account', style: TextStyle(fontSize: 16)),
               ),
             ],
+          ),
         ),
       ),
     );
@@ -1076,10 +1138,10 @@ class _HomePageState extends State<HomePage> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Home page using admin ID: \${adminId}');
+      print('🔍 Home page using admin ID: ${adminId}');
       
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1138,11 +1200,11 @@ class _HomePageState extends State<HomePage> {
             _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
             _isLoading = false;
           });
-          print('✅ Loaded \${_dynamicProductCards.length} products from backend');
+          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
         }
       }
     } catch (e) {
-      print('❌ Error loading dynamic data: \$e');
+      print('❌ Error loading dynamic data: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -1669,8 +1731,6 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
-     // Replace the ImageSliderWidget case (around line 1760-1900) with this fixed version:
-
       case 'ImageSliderWidget':
         // Dynamic ImageSlider Widget - fetch from API like web preview
         final height = double.tryParse(props['height']?.toString() ?? '150') ?? 150.0;
@@ -1932,7 +1992,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2019,7 +2079,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2113,7 +2173,7 @@ class _HomePageState extends State<HomePage> {
     final bool isSoldOut = quantityAvailable <= 0;
     final String discountLabel;
     if (hasPercentDiscount) {
-      discountLabel = '\${badgeDiscountPercent.toStringAsFixed(0)}% OFF';
+      discountLabel = '0% OFF';
     } else {
       discountLabel = 'OFFER';
     }
@@ -2122,7 +2182,7 @@ class _HomePageState extends State<HomePage> {
     if (isSoldOut) {
       stockLabel = 'SOLD OUT';
     } else {
-      stockLabel = 'In stock: \$quantityAvailable';
+      stockLabel = 'In stock: 0';
     }
     final bool isInWishlist = _wishlistManager.isInWishlist(productId);
 
@@ -2286,7 +2346,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 );
                               }
-                              return const SizedBox.shrink();
+                              return SizedBox.shrink();
                             },
                           ),
                       ],
@@ -2404,7 +2464,7 @@ class _HomePageState extends State<HomePage> {
                                     Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     // Show current price (effective price)
                                     Text(
-                                      PriceUtils.formatPrice(item.effectivePrice, currency: item.currencySymbol),
+                                      PriceUtils.formatPrice(item.effectivePrice),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -2414,7 +2474,7 @@ class _HomePageState extends State<HomePage> {
                                     // Show original price if there's a discount
                                     if (item.discountPrice > 0 && item.price != item.discountPrice)
                                       Text(
-                                        PriceUtils.formatPrice(item.price, currency: item.currencySymbol),
+                                        PriceUtils.formatPrice(item.price),
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration: TextDecoration.lineThrough,
@@ -2577,7 +2637,10 @@ class _HomePageState extends State<HomePage> {
                   margin: const EdgeInsets.all(16),
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _handleBuyNow,
+                    onPressed: () {
+                      // Handle buy now action
+                      _handleBuyNow();
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -2600,13 +2663,6 @@ class _HomePageState extends State<HomePage> {
             );
         },
       ),
-    );
-  }
-
-  // Added missing method
-  void _handleBuyNow() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Checkout functionality coming soon!')),
     );
   }
 
@@ -2735,7 +2791,7 @@ class _HomePageState extends State<HomePage> {
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
                       final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
-                          ? '\$firstName \$lastName'
+                          ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
                       
                       return Text(
@@ -2780,7 +2836,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Moved inside class
   Widget _buildBottomNavigationBar() {
     return BottomNavigationBar(
       currentIndex: _currentPageIndex,
@@ -2795,7 +2850,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('\${_cartManager.items.length}'),
+            label: Text('${_cartManager.items.length}'),
             isLabelVisible: _cartManager.items.length > 0,
             child: const Icon(Icons.shopping_cart),
           ),
@@ -2803,7 +2858,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('\${_wishlistManager.items.length}'),
+            label: Text('${_wishlistManager.items.length}'),
             isLabelVisible: _wishlistManager.items.length > 0,
             child: const Icon(Icons.favorite),
           ),
@@ -2828,15 +2883,40 @@ class _HomePageState extends State<HomePage> {
       return {};
     }
   }
-}
 
-// Added missing ApiService class
-class ApiService {
-  Future<Map<String, dynamic>> getUserProfile() async {
-    // Mock implementation returning a map
-    return {
-      'firstName': 'John',
-      'lastName': 'Doe',
-    };
-  }
 }
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _currentPageIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Colors.blue,
+      unselectedItemColor: Colors.grey,
+      items: [
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        BottomNavigationBarItem(
+          icon: Badge(
+            label: Text('${_wishlistManager.items.length}'),
+            isLabelVisible: _wishlistManager.items.length > 0,
+            child: const Icon(Icons.favorite),
+          ),
+          label: 'Wishlist',
+        ),
+        BottomNavigationBarItem(
+          icon: Badge(
+            label: Text('${_cartManager.items.length}'),
+            isLabelVisible: _cartManager.items.length > 0,
+            child: const Icon(Icons.shopping_cart),
+          ),
+          label: 'Cart',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.person),
+          label: 'Profile',
+        ),
+      ],
+    );
+  }
