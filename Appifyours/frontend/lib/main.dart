@@ -6,17 +6,12 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 
-// Mock Environment class to replace missing import
-class Environment {
-  static const String apiBase = 'http://10.27.148.1:5000';
-}
-
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
-    return '$currency\${price.toStringAsFixed(2)}';
+    return '$currency${price.toStringAsFixed(2)}';
   }
-
+  
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
@@ -24,7 +19,7 @@ class PriceUtils {
     String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
-
+  
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
@@ -38,30 +33,35 @@ class PriceUtils {
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
   }
-
+  
+  // Get currency symbol from currency code
   static String currencySymbolFromCode(String code) {
     switch (code.toUpperCase()) {
       case 'USD': return '\$';
+      case 'INR': return '₹';
       case 'EUR': return '€';
       case 'GBP': return '£';
-      case 'INR': return '₹';
       case 'JPY': return '¥';
-      default: return code;
+      case 'KRW': return '₩';
+      case 'RUB': return '₽';
+      case 'NGN': return '₦';
+      case 'PKR': return '₨';
+      default: return '\$';
     }
   }
-
+  
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
     return originalPrice * (1 - discountPercentage / 100);
   }
-
+  
   static double calculateTotal(List<double> prices) {
     return prices.fold(0.0, (sum, price) => sum + price);
   }
-
+  
   static double calculateTax(double subtotal, double taxRate) {
     return subtotal * (taxRate / 100);
   }
-
+  
   static double applyShipping(double total, double shippingFee, {double freeShippingThreshold = 100.0}) {
     return total >= freeShippingThreshold ? total : total + shippingFee;
   }
@@ -75,8 +75,8 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  final String currencySymbol;
-
+  final String? currencySymbol;
+  
   CartItem({
     required this.id,
     required this.name,
@@ -84,9 +84,9 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
-    this.currencySymbol = '\$',
+    this.currencySymbol,
   });
-
+  
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
   double get totalPrice => effectivePrice * quantity;
 }
@@ -96,27 +96,33 @@ class CartManager extends ChangeNotifier {
   final List<CartItem> _items = [];
   double _gstPercentage = 18.0; // Default GST percentage
   double _discountPercentage = 0.0; // Default discount percentage
-
+  
   List<CartItem> get items => List.unmodifiable(_items);
-
+  
+  int get totalQuantity {
+    return _items.fold(0, (sum, item) => sum + item.quantity);
+  }
+  
+  String get displayCurrencySymbol => '\$'; // Default currency symbol
+  
   // Update GST percentage
   void updateGSTPercentage(double percentage) {
     _gstPercentage = percentage;
     notifyListeners();
   }
-
+  
   // Update discount percentage
   void updateDiscountPercentage(double percentage) {
     _discountPercentage = percentage;
     notifyListeners();
   }
-
+  
   // Get GST percentage
   double get gstPercentage => _gstPercentage;
-
+  
   // Get discount percentage
   double get discountPercentage => _discountPercentage;
-
+  
   void addItem(CartItem item) {
     final existingIndex = _items.indexWhere((i) => i.id == item.id);
     if (existingIndex >= 0) {
@@ -126,56 +132,52 @@ class CartManager extends ChangeNotifier {
     }
     notifyListeners();
   }
-
+  
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
   }
-
+  
   void updateQuantity(String id, int quantity) {
     final item = _items.firstWhere((i) => i.id == id);
     item.quantity = quantity;
     notifyListeners();
   }
-
+  
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-
+  
   void clear() {
     _items.clear();
     notifyListeners();
   }
-
+  
   double get subtotal {
     return _items.fold(0.0, (sum, item) => sum + item.totalPrice);
   }
-
+  
   double get totalWithTax {
     final tax = PriceUtils.calculateTax(subtotal, 8.0); // 8% tax
     return subtotal + tax;
   }
-
+  
   double get totalDiscount {
-    return _items.fold(0.0, (sum, item) =>
-        sum + ((item.price - item.effectivePrice) * item.quantity));
+    return _items.fold(0.0, (sum, item) => 
+      sum + ((item.price - item.effectivePrice) * item.quantity));
   }
-
+  
   double get gstAmount {
     return PriceUtils.calculateTax(subtotal, _gstPercentage); // Dynamic GST percentage
   }
-
+  
   double get finalTotal {
     return subtotal + gstAmount;
   }
-
+  
   double get finalTotalWithShipping {
     return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
   }
-
-  int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
-
-  String get displayCurrencySymbol => '\$'; // Default
 }
 
 // Wishlist item model
@@ -186,7 +188,7 @@ class WishlistItem {
   final double discountPrice;
   final String? image;
   final String currencySymbol;
-
+  
   WishlistItem({
     required this.id,
     required this.name,
@@ -195,50 +197,54 @@ class WishlistItem {
     this.image,
     this.currencySymbol = '\$',
   });
-
+  
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
 }
 
 // Wishlist manager
 class WishlistManager extends ChangeNotifier {
-  void clearWishlist() {
-    clear(); // Reuse existing clear method
-  }
-
   final List<WishlistItem> _items = [];
-
+  
   List<WishlistItem> get items => List.unmodifiable(_items);
-
+  
   void addItem(WishlistItem item) {
     if (!_items.any((i) => i.id == item.id)) {
       _items.add(item);
       notifyListeners();
     }
   }
-
+  
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
+  }
+  
+  void clearWishlist() {
+    clear(); // Reuse existing clear method
   }
 
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-
+  
   void clear() {
     _items.clear();
     notifyListeners();
   }
-
+  
   bool isInWishlist(String id) {
     return _items.any((item) => item.id == id);
   }
 }
 
+// Environment configuration
+class Environment {
+  static const String apiBase = 'http://10.27.148.1:5000';
+}
+
 // Dynamic Configuration from Form
-// Note: Using mock values since form logic was incomplete in provided snippet
-final String gstNumber = 'GST_NUMBER_PLACEHOLDER';
-final String selectedCategory = 'CATEGORY_PLACEHOLDER';
+final String gstNumber = 'gstNumber';
+final String selectedCategory = 'selectedCategory';
 final Map<String, dynamic> storeInfo = {
   'storeName': 'My Store',
   'address': '123 Main St',
@@ -261,9 +267,9 @@ class DynamicAppSync {
   DynamicAppSync._internal();
 
   IO.Socket? _socket;
-  final StreamController<Map<String, dynamic>> _updateController =
+  final StreamController<Map<String, dynamic>> _updateController = 
       StreamController<Map<String, dynamic>>.broadcast();
-
+  
   bool _isConnected = false;
   String? _adminId;
 
@@ -274,7 +280,7 @@ class DynamicAppSync {
     if (_isConnected && _socket != null) return;
 
     _adminId = adminId;
-
+    
     try {
       final options = {
         'transports': ['websocket'],
@@ -287,7 +293,7 @@ class DynamicAppSync {
 
       _socket = IO.io('$apiBase/real-time-updates', options);
       _setupSocketListeners();
-
+      
     } catch (e) {
       print('DynamicAppSync: Error connecting: $e');
     }
@@ -299,7 +305,7 @@ class DynamicAppSync {
     _socket!.onConnect((_) {
       print('DynamicAppSync: Connected');
       _isConnected = true;
-
+      
       if (_adminId != null && _adminId!.isNotEmpty) {
         _socket!.emit('join-admin-room', {'adminId': _adminId});
       }
@@ -344,55 +350,6 @@ class DynamicAppSync {
   }
 }
 
-// Removed global loadDynamicProductData and startRealTimeUpdates as they were causing setState errors and are handled in HomePage
-
-void main() => runApp(const MyApp());
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Generated E-commerce App',
-    theme: ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      colorSchemeSeed: Colors.blue,
-      appBarTheme: const AppBarTheme(
-        elevation: 4,
-        shadowColor: Colors.black38,
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
-      cardTheme: const CardTheme( // Changed from CardThemeData
-        elevation: 4,
-        shadowColor: Colors.black12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8)),
-          ),
-        ),
-      ),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.all(Radius.circular(8)),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
-    ),
-    home: const SplashScreen(),
-    debugShowCheckedModeBanner: false,
-  );
-}
-
 // API Configuration - Auto-updated with your server details
 class ApiConfig {
   static String get baseUrl => Environment.apiBase;
@@ -435,7 +392,7 @@ class SessionManager {
 // Dynamic Admin ID Detection
 class AdminManager {
   static String? _currentAdminId;
-
+  
   static Future<String> getCurrentAdminId() async {
     if (_currentAdminId != null) return _currentAdminId!;
 
@@ -450,15 +407,15 @@ class AdminManager {
     print('✅ Admin ID locked: $adminId');
     return adminId;
   }
-
+  
   // Auto-detect admin ID from backend
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/admin/app-info'),
+        Uri.parse('http://10.27.148.1:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
@@ -474,11 +431,102 @@ class AdminManager {
     }
     return null;
   }
-
+  
   // Method to set admin ID dynamically
   static Future<void> setAdminId(String adminId) async {
     throw UnsupportedError('Admin ID is immutable in generated apps');
   }
+}
+
+// Auth Helper
+class AuthHelper {
+  static Future<bool> isAdmin() async {
+    // Simple implementation - check if current user is admin
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    final adminId = await AdminManager.getCurrentAdminId();
+    return userId == adminId;
+  }
+}
+
+// API Service
+class ApiService {
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userId = prefs.getString('user_id');
+      
+      if (token == null || userId == null) {
+        return {};
+      }
+      
+      final response = await http.get(
+        Uri.parse('${Environment.apiBase}/api/user/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token'
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['user'] ?? {};
+        }
+      }
+    } catch (e) {
+      print('Error fetching user profile: $e');
+    }
+    return {};
+  }
+}
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'Generated E-commerce App',
+    theme: ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.light,
+      colorSchemeSeed: Colors.blue,
+      appBarTheme: const AppBarTheme(
+        elevation: 4,
+        shadowColor: Colors.black38,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
+      cardTheme: const CardTheme(
+        elevation: 4,
+        shadowColor: Colors.black12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(8)),
+          ),
+        ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      ),
+    ),
+    home: const SplashScreen(),
+    debugShowCheckedModeBanner: false,
+  );
 }
 
 // Splash Screen - First screen
@@ -502,13 +550,13 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Splash screen using admin ID: ${adminId}');
+      print('🔍 Splash screen using admin ID: $adminId');
 
       // Load admin splash config for this fixed adminId
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=$adminId&appId=${ApiConfig.appId}'),
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
@@ -517,7 +565,7 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _appName = SessionManager.appName;
           });
-          print('✅ Splash screen loaded app name: ${_appName}');
+          print('✅ Splash screen loaded app name: $_appName');
         }
       } else {
         print('⚠️ Splash screen API error: ${response.statusCode}');
@@ -528,7 +576,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: ${e}');
+      print('Error fetching app name: $e');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -536,9 +584,9 @@ class _SplashScreenState extends State<SplashScreen> {
         });
       }
     }
-
+    
     await Future.delayed(const Duration(seconds: 3));
-
+    
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -630,7 +678,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('${Environment.apiBase}/api/login'),
+        Uri.parse('http://10.27.148.1:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -639,7 +687,7 @@ class _SignInPageState extends State<SignInPage> {
           'appId': ApiConfig.appId,
         }),
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
@@ -670,7 +718,7 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign in failed: \${e.toString().replaceAll("Exception: ", "")}'),
+            content: Text('Sign in failed: ${e.toString().replaceAll("Exception: ", "")}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -800,7 +848,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validateEmail(String email) {
-    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}$').hasMatch(email);
+    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$').hasMatch(email);
   }
 
   bool _validatePhone(String phone) {
@@ -899,7 +947,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: \${e.toString()}'),
+            content: Text('Failed: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1013,21 +1061,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 }
 
-// Helper classes for missing dependencies
-class AuthHelper {
-  static Future<bool> isAdmin() async {
-    // Mock implementation
-    return false;
-  }
-}
-
-class ApiService {
-  Future<Map<String, dynamic>> getUserProfile() async {
-    // Mock implementation
-    return {'firstName': 'User', 'lastName': 'Name'};
-  }
-}
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -1050,6 +1083,9 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _dynamicStoreInfo = {};
   Map<String, dynamic> _dynamicDesignSettings = {};
   Color _pageBackgroundColor = Colors.white;
+  StreamSubscription? _updateSubscription;
+  final DynamicAppSync _appSync = DynamicAppSync();
+  Map<String, int> _productQuantities = {};
 
   @override
   void initState() {
@@ -1058,95 +1094,90 @@ class _HomePageState extends State<HomePage> {
     _dynamicProductCards = List.from(productCards); // Fallback to static data
     _filteredProducts = List.from(_dynamicProductCards);
     _loadDynamicData();
+    _startRealTimeUpdates();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _updateSubscription?.cancel();
+    _appSync.dispose();
     super.dispose();
   }
 
-  Future<void> _loadDynamicData() async {
-    setState(() => _isLoading = true);
-    await _loadDynamicAppConfig();
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  // Load dynamic data from backend
-  Future<void> _loadDynamicAppConfig() async {
+  // Function to load dynamic product data from backend
+  Future<void> _loadDynamicProductData() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+      
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Home page using admin ID: ${adminId}');
-
+      print('🔍 Loading dynamic data with admin ID: $adminId');
+      
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=$adminId&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        if (data['success'] == true) {
-          final pages = (data['pages'] is List) ? List.from(data['pages']) : <dynamic>[];
-
-          // Page-level properties (overall background, etc.)
-          Map<String, dynamic> pageProps = <String, dynamic>{};
-          if (pages.isNotEmpty && pages.first is Map) {
-            final propsRaw = (pages.first as Map)['properties'];
-            if (propsRaw is Map) {
-              pageProps = Map<String, dynamic>.from(propsRaw);
-            }
-          }
-
-          // Extract widgets from first page (Home)
-          List<Map<String, dynamic>> extractedWidgets = [];
-          if (pages.isNotEmpty && pages.first is Map && (pages.first as Map)['widgets'] is List) {
-            extractedWidgets = List<Map<String, dynamic>>.from((pages.first as Map)['widgets']);
-          }
-
-          // Extract products from widget properties (if present)
-          List<Map<String, dynamic>> extractedProducts = [];
-          for (final w in extractedWidgets) {
-            final name = (w['name'] ?? '').toString();
-            if (name == 'ProductGridWidget' || name == 'Catalog View Card' || name == 'Product Detail Card') {
-              final props = w['properties'];
-              if (props is Map && props['productCards'] is List) {
-                extractedProducts.addAll(List<Map<String, dynamic>>.from(props['productCards']));
+        if (data['success'] == true && data['pages'] != null) {
+          final pages = data['pages'] as List;
+          final newProducts = <Map<String, dynamic>>[];
+          
+          // Extract products from all widgets
+          for (var page in pages) {
+            if (page['widgets'] != null) {
+              for (var widget in page['widgets']) {
+                if (widget['properties'] != null && widget['properties']['productCards'] != null) {
+                  final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
+                  newProducts.addAll(products);
+                }
               }
             }
           }
-
-          // Sort widgets to ensure HeaderWidget appears first
-          extractedWidgets.sort((a, b) {
-            bool aIsHeader = a['name'] == 'HeaderWidget';
-            bool bIsHeader = b['name'] == 'HeaderWidget';
-            if (aIsHeader && !bIsHeader) return -1;
-            if (!aIsHeader && bIsHeader) return 1;
-            return 0;
-          });
-
-          final storeInfo = (data['storeInfo'] is Map) ? Map<String, dynamic>.from(data['storeInfo']) : <String, dynamic>{};
-          final designSettings = (data['designSettings'] is Map)
-              ? Map<String, dynamic>.from(data['designSettings'])
-              : <String, dynamic>{};
-
+          
           setState(() {
-            _dynamicProductCards = extractedProducts.isNotEmpty ? extractedProducts : productCards;
-            _filterProducts(_searchQuery); // Re-apply current filter
-            _homeWidgets = extractedWidgets;
-            _dynamicStoreInfo = storeInfo;
-            _dynamicDesignSettings = designSettings;
-            _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
+            _dynamicProductCards = newProducts;
             _isLoading = false;
           });
-          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
+          
+          print('✅ Loaded ${_dynamicProductCards.length} dynamic products');
+        } else {
+          throw Exception('Invalid response format');
         }
+      } else {
+        throw Exception('HTTP ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Error loading dynamic data: $e');
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Real-time updates with WebSocket
+  void _startRealTimeUpdates() async {
+    final adminId = await AdminManager.getCurrentAdminId();
+    if (adminId != null) {
+      _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
+      
+      _updateSubscription = _appSync.updates.listen((update) {
+        if (!mounted) return;
+        
+        final type = update['type']?.toString().toLowerCase();
+        print('📱 Received real-time update: $type');
+        
+        switch (type) {
+          case 'home-page':
+          case 'dynamic-update':
+            _loadDynamicProductData();
+            break;
+        }
+      });
     }
   }
 
@@ -1205,6 +1236,16 @@ class _HomePageState extends State<HomePage> {
     final String code = (product['currencyCode'] ?? '').toString();
     if (code.isNotEmpty) return PriceUtils.currencySymbolFromCode(code);
     return PriceUtils.detectCurrency((product['price'] ?? '').toString());
+  }
+
+  // Buy Now handler
+  void _handleBuyNow() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Proceeding to checkout...'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   @override
@@ -1292,7 +1333,7 @@ class _HomePageState extends State<HomePage> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
-              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center :
+              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center : 
                            textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
                 if (textAlign != 'right')
@@ -1314,7 +1355,7 @@ class _HomePageState extends State<HomePage> {
                 if (textAlign != 'right') const SizedBox(width: 6),
                 Text(
                   appName,
-                  textAlign: textAlign == 'center' ? TextAlign.center :
+                  textAlign: textAlign == 'center' ? TextAlign.center : 
                            textAlign == 'right' ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
                     color: textColor,
@@ -1681,10 +1722,10 @@ class _HomePageState extends State<HomePage> {
         final autoPlayInterval = int.tryParse(props['autoPlayInterval']?.toString() ?? '3') ?? 3;
         final showIndicators = props['showIndicators'] ?? true;
         final enableInfiniteScroll = true;
-
+        
         // Use dynamic slider images from API like web preview
         List<Map<String, dynamic>> sliderImages = [];
-
+        
         // Find ImageSliderWidget in dynamic home widgets and extract sliderImages
         if (_homeWidgets.isNotEmpty) {
           for (var widget in _homeWidgets) {
@@ -1697,7 +1738,7 @@ class _HomePageState extends State<HomePage> {
             }
           }
         }
-
+        
         // Fallback to static props if no dynamic images found
         if (sliderImages.isEmpty && props['sliderImages'] != null) {
           sliderImages = List<Map<String, dynamic>>.from(props['sliderImages']);
@@ -1928,12 +1969,96 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadDynamicData() async {
+    setState(() => _isLoading = true);
+    await _loadDynamicAppConfig();
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Load dynamic data from backend
+  Future<void> _loadDynamicAppConfig() async {
+    try {
+      // Get dynamic admin ID
+      final adminId = await AdminManager.getCurrentAdminId();
+      print('🔍 Home page using admin ID: $adminId');
+      
+      final response = await http.get(
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=$adminId&appId=${ApiConfig.appId}'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          final pages = (data['pages'] is List) ? List.from(data['pages']) : <dynamic>[];
+
+          // Page-level properties (overall background, etc.)
+          Map<String, dynamic> pageProps = <String, dynamic>{};
+          if (pages.isNotEmpty && pages.first is Map) {
+            final propsRaw = (pages.first as Map)['properties'];
+            if (propsRaw is Map) {
+              pageProps = Map<String, dynamic>.from(propsRaw);
+            }
+          }
+
+          // Extract widgets from first page (Home)
+          List<Map<String, dynamic>> extractedWidgets = [];
+          if (pages.isNotEmpty && pages.first is Map && (pages.first as Map)['widgets'] is List) {
+            extractedWidgets = List<Map<String, dynamic>>.from((pages.first as Map)['widgets']);
+          }
+
+          // Extract products from widget properties (if present)
+          List<Map<String, dynamic>> extractedProducts = [];
+          for (final w in extractedWidgets) {
+            final name = (w['name'] ?? '').toString();
+            if (name == 'ProductGridWidget' || name == 'Catalog View Card' || name == 'Product Detail Card') {
+              final props = w['properties'];
+              if (props is Map && props['productCards'] is List) {
+                extractedProducts.addAll(List<Map<String, dynamic>>.from(props['productCards']));
+              }
+            }
+          }
+          
+          // Sort widgets to ensure HeaderWidget appears first
+          extractedWidgets.sort((a, b) {
+            bool aIsHeader = a['name'] == 'HeaderWidget';
+            bool bIsHeader = b['name'] == 'HeaderWidget';
+            if (aIsHeader && !bIsHeader) return -1;
+            if (!aIsHeader && bIsHeader) return 1;
+            return 0;
+          });
+
+          final storeInfo = (data['storeInfo'] is Map) ? Map<String, dynamic>.from(data['storeInfo']) : <String, dynamic>{};
+          final designSettings = (data['designSettings'] is Map)
+              ? Map<String, dynamic>.from(data['designSettings'])
+              : <String, dynamic>{};
+
+          setState(() {
+            _dynamicProductCards = extractedProducts.isNotEmpty ? extractedProducts : productCards;
+            _filterProducts(_searchQuery); // Re-apply current filter
+            _homeWidgets = extractedWidgets;
+            _dynamicStoreInfo = storeInfo;
+            _dynamicDesignSettings = designSettings;
+            _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
+            _isLoading = false;
+          });
+          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
+        }
+      }
+    } catch (e) {
+      print('❌ Error loading dynamic data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
   // Load dynamic store data from backend
   Future<Map<String, dynamic>> _loadDynamicStoreData() async {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=$adminId&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1943,7 +2068,7 @@ class _HomePageState extends State<HomePage> {
           // Extract store info from the response
           final storeInfo = data['storeInfo'] ?? {};
           final designSettings = data['designSettings'] ?? {};
-
+          
           return {
             'storeName': data['shopName'] ?? storeInfo['storeName'] ?? 'My Store',
             'address': storeInfo['address'] ?? '123 Main St',
@@ -1958,7 +2083,7 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       print('Error loading store data: $e');
     }
-
+    
     // Return default values if API fails
     return {
       'storeName': 'My Store',
@@ -2015,9 +2140,74 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Load dynamic products from backend
+  Future<List<Map<String, dynamic>>> _loadDynamicProducts() async {
+    try {
+      final adminId = await AdminManager.getCurrentAdminId();
+      final response = await http.get(
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=$adminId&appId=${ApiConfig.appId}'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['widgets'] != null) {
+          // Extract product data from widgets
+          List<Map<String, dynamic>> products = [];
+          
+          for (var widget in data['widgets']) {
+            if (widget['name'] == 'ProductGridWidget' || 
+                widget['name'] == 'Catalog View Card' ||
+                widget['name'] == 'Product Detail Card') {
+              final productCards = widget['properties']?['productCards'] ?? [];
+              products.addAll(List<Map<String, dynamic>>.from(productCards));
+            }
+          }
+          
+          return products;
+        }
+      }
+    } catch (e) {
+      print('Error loading products: $e');
+    }
+    
+    return [];
+  }
+
+  // Quantity management methods
+  int _getProductQuantity(String productId) {
+    return _productQuantities[productId] ?? 1;
+  }
+
+  void _incrementQuantity(String productId) {
+    final currentQuantity = _getProductQuantity(productId);
+    if (currentQuantity < 10) {
+      setState(() {
+        _productQuantities[productId] = currentQuantity + 1;
+      });
+    }
+  }
+
+  void _decrementQuantity(String productId) {
+    final currentQuantity = _getProductQuantity(productId);
+    if (currentQuantity > 1) {
+      setState(() {
+        _productQuantities[productId] = currentQuantity - 1;
+      });
+    }
+  }
+
+  int _getTotalCartQuantity() {
+    return _productQuantities.values.fold(0, (sum, quantity) => sum + quantity);
+  }
+
+  bool _canAddToCart() {
+    return _getTotalCartQuantity() < 10;
+  }
+
   // Build individual product card
   Widget _buildProductCard(Map<String, dynamic> product, int index, {Map<String, dynamic>? styleProps}) {
-    final String productId = 'product_' + index.toString();
+    final String productId = 'product_${index.toString()}';
     final String productName = product['productName'] ?? product['name'] ?? 'Product';
 
     final Map<String, dynamic> props = styleProps ?? const <String, dynamic>{};
@@ -2025,13 +2215,13 @@ class _HomePageState extends State<HomePage> {
     final Color borderColor = _colorFromHex(props['borderColor']?.toString()) ?? Colors.transparent;
     final Color priceColor = _colorFromHex(props['priceColor']?.toString()) ?? Colors.blue;
     final Color discountBadgeColor = _colorFromHex(props['discountBadgeColor']?.toString()) ?? Colors.redAccent;
-
+    
     // Try multiple possible price field names
     final String? priceField1 = product['price']?.toString();
     final String? priceField2 = product['basePrice']?.toString();
     final String? priceField3 = product['currentPrice']?.toString();
     final String? priceField4 = product['productPrice']?.toString();
-
+    
     final String rawPrice = priceField1 ?? priceField2 ?? priceField3 ?? priceField4 ?? '99.99';
     final double basePrice = PriceUtils.parsePrice(rawPrice);
     final String currencySymbol = _currencySymbolForProduct(product);
@@ -2049,11 +2239,11 @@ class _HomePageState extends State<HomePage> {
     final bool isSoldOut = quantityAvailable <= 0;
     final String discountLabel;
     if (hasPercentDiscount) {
-      discountLabel = '${badgeDiscountPercent.toInt()}% OFF';
+      discountLabel = '${badgeDiscountPercent.toStringAsFixed(0)}% OFF';
     } else {
       discountLabel = 'OFFER';
     }
-
+    
     final String stockLabel;
     if (isSoldOut) {
       stockLabel = 'SOLD OUT';
@@ -2187,7 +2377,7 @@ class _HomePageState extends State<HomePage> {
                         Row(
                           children: [
                             Text(
-                              currencySymbol + effectivePrice.toStringAsFixed(2),
+                              '$currencySymbol${effectivePrice.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -2197,7 +2387,7 @@ class _HomePageState extends State<HomePage> {
                             const SizedBox(width: 4),
                             if (hasDiscount)
                               Text(
-                                currencySymbol + basePrice.toStringAsFixed(2),
+                                '$currencySymbol${basePrice.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 11,
                                   decoration: TextDecoration.lineThrough,
@@ -2241,19 +2431,19 @@ class _HomePageState extends State<HomePage> {
   // Helper method to convert hex color to Color
   Color _colorFromHex(String? hexColor) {
     if (hexColor == null || hexColor.isEmpty) return Colors.blue;
-
+    
     String localFormattedColor = hexColor.toUpperCase().replaceAll('#', '');
-
+    
     if (localFormattedColor.length == 6) {
-      localFormattedColor = 'FF' + localFormattedColor;
+      localFormattedColor = 'FF$localFormattedColor';
     } else if (localFormattedColor.length == 8) {
       // Already has alpha channel
     } else {
       return Colors.blue;
     }
-
+    
     try {
-      return Color(int.parse('0x' + localFormattedColor));
+      return Color(int.parse('0x$localFormattedColor'));
     } catch (e) {
       print('Invalid color: $hexColor');
       return Colors.blue;
@@ -2316,14 +2506,14 @@ class _HomePageState extends State<HomePage> {
                                     : const Icon(Icons.image),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(
+                              Expanded( 
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     // Show current price (effective price)
                                     Text(
-                                      PriceUtils.formatPrice(item.effectivePrice, currency: item.currencySymbol),
+                                      PriceUtils.formatPrice(item.effectivePrice),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -2333,7 +2523,7 @@ class _HomePageState extends State<HomePage> {
                                     // Show original price if there's a discount
                                     if (item.discountPrice > 0 && item.price != item.discountPrice)
                                       Text(
-                                        PriceUtils.formatPrice(item.price, currency: item.currencySymbol),
+                                        PriceUtils.formatPrice(item.price),
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration: TextDecoration.lineThrough,
@@ -2463,7 +2653,7 @@ class _HomePageState extends State<HomePage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Discount', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                              Text('-' + PriceUtils.formatPrice(_cartManager.totalDiscount, currency: _cartManager.displayCurrencySymbol), style: const TextStyle(fontSize: 14, color: Colors.green)),
+                              Text('-${PriceUtils.formatPrice(_cartManager.totalDiscount, currency: _cartManager.displayCurrencySymbol)}', style: const TextStyle(fontSize: 14, color: Colors.green)),
                             ],
                           ),
                         ),
@@ -2525,13 +2715,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _handleBuyNow() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Proceeding to checkout...')),
-    );
-    // Add navigation logic here if needed
-  }
-
   Widget _buildWishlistPage() {
     return Scaffold(
       appBar: AppBar(
@@ -2591,7 +2774,6 @@ class _HomePageState extends State<HomePage> {
                               price: item.price,
                               discountPrice: item.discountPrice,
                               image: item.image,
-                              currencySymbol: item.currencySymbol,
                             );
                             _cartManager.addItem(cartItem);
                             setState(() {
@@ -2639,7 +2821,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 20),
                   FutureBuilder<Map<String, dynamic>>(
-                    future: _fetchUserProfile(),
+                    future: ApiService().getUserProfile(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const CircularProgressIndicator();
@@ -2657,10 +2839,10 @@ class _HomePageState extends State<HomePage> {
                       final userData = snapshot.data ?? {};
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
-                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty)
+                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
                           ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
-
+                      
                       return Text(
                         displayName,
                         style: const TextStyle(
@@ -2718,19 +2900,19 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('${_cartManager.items.length}'),
-            isLabelVisible: _cartManager.items.length > 0,
-            child: const Icon(Icons.shopping_cart),
-          ),
-          label: 'Cart',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
             label: Text('${_wishlistManager.items.length}'),
             isLabelVisible: _wishlistManager.items.length > 0,
             child: const Icon(Icons.favorite),
           ),
           label: 'Wishlist',
+        ),
+        BottomNavigationBarItem(
+          icon: Badge(
+            label: Text('${_cartManager.items.length}'),
+            isLabelVisible: _cartManager.items.length > 0,
+            child: const Icon(Icons.shopping_cart),
+          ),
+          label: 'Cart',
         ),
         const BottomNavigationBarItem(
           icon: Icon(Icons.person),
@@ -2738,17 +2920,5 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     );
-  }
-
-  // Method to fetch user profile data
-  Future<Map<String, dynamic>> _fetchUserProfile() async {
-    try {
-      final ApiService apiService = ApiService();
-      final userProfile = await apiService.getUserProfile();
-      return userProfile;
-    } catch (e) {
-      print('Error fetching user profile: $e');
-      return {};
-    }
   }
 }
