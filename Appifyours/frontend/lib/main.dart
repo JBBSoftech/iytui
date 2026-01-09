@@ -1248,6 +1248,50 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Add to Cart handler
+  void _addToCart(Map<String, dynamic> product, int index) {
+    final String productId = 'product_${index.toString()}';
+    final String productName = product['productName'] ?? product['name'] ?? 'Product';
+    
+    // Try multiple possible price field names
+    final String? priceField1 = product['price']?.toString();
+    final String? priceField2 = product['basePrice']?.toString();
+    final String? priceField3 = product['currentPrice']?.toString();
+    final String? priceField4 = product['productPrice']?.toString();
+    
+    final String rawPrice = priceField1 ?? priceField2 ?? priceField3 ?? priceField4 ?? '99.99';
+    final double basePrice = PriceUtils.parsePrice(rawPrice);
+    final double badgeDiscountPercent = double.tryParse((product['discountPercent'] ?? '0').toString()) ?? 0.0;
+    final double manualDiscountPrice = PriceUtils.parsePrice(product['discountPrice']?.toString() ?? '0.00');
+    final bool hasPercentDiscount = badgeDiscountPercent > 0;
+    final double discountedPriceFromPercent = hasPercentDiscount ? basePrice * (1 - badgeDiscountPercent / 100) : 0.0;
+    final double effectivePrice = hasPercentDiscount
+        ? discountedPriceFromPercent
+        : (manualDiscountPrice > 0 ? manualDiscountPrice : basePrice);
+    final String? image = product['imageAsset'] ?? product['image'];
+    
+    final cartItem = CartItem(
+      id: productId,
+      name: productName,
+      price: basePrice,
+      discountPrice: effectivePrice,
+      quantity: 1,
+      image: image,
+    );
+    
+    _cartManager.addItem(cartItem);
+    setState(() {
+      _cartNotificationCount += 1;
+    });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Added to cart'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(
@@ -2215,6 +2259,7 @@ class _HomePageState extends State<HomePage> {
     final Color borderColor = _colorFromHex(props['borderColor']?.toString()) ?? Colors.transparent;
     final Color priceColor = _colorFromHex(props['priceColor']?.toString()) ?? Colors.blue;
     final Color discountBadgeColor = _colorFromHex(props['discountBadgeColor']?.toString()) ?? Colors.redAccent;
+    final Color addToCartButtonColor = _colorFromHex(props['addToCartButtonColor']?.toString()) ?? Colors.green;
     
     // Try multiple possible price field names
     final String? priceField1 = product['price']?.toString();
@@ -2418,6 +2463,29 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // Add to Cart Button
+                    Container(
+                      width: double.infinity,
+                      height: 30,
+                      child: ElevatedButton(
+                        onPressed: isSoldOut ? null : () => _addToCart(product, index),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: addToCartButtonColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        child: const Text(
+                          'Add to Cart',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
