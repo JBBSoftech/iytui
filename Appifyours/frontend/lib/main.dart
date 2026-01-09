@@ -4,22 +4,27 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/config/environment.dart';
+import 'package:carousel_slider/carousel_slider.dart';
+
+// Mock Environment class to replace missing import
+class Environment {
+  static const String apiBase = 'http://10.27.148.1:5000';
+}
 
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
     return '$currency\${price.toStringAsFixed(2)}';
   }
-  
+
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
-  
+
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
@@ -33,19 +38,30 @@ class PriceUtils {
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
   }
-  
+
+  static String currencySymbolFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'USD': return '\$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'INR': return '₹';
+      case 'JPY': return '¥';
+      default: return code;
+    }
+  }
+
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
     return originalPrice * (1 - discountPercentage / 100);
   }
-  
+
   static double calculateTotal(List<double> prices) {
     return prices.fold(0.0, (sum, price) => sum + price);
   }
-  
+
   static double calculateTax(double subtotal, double taxRate) {
     return subtotal * (taxRate / 100);
   }
-  
+
   static double applyShipping(double total, double shippingFee, {double freeShippingThreshold = 100.0}) {
     return total >= freeShippingThreshold ? total : total + shippingFee;
   }
@@ -59,7 +75,8 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  
+  final String currencySymbol;
+
   CartItem({
     required this.id,
     required this.name,
@@ -67,8 +84,9 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
+    this.currencySymbol = '\$',
   });
-  
+
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
   double get totalPrice => effectivePrice * quantity;
 }
@@ -78,27 +96,27 @@ class CartManager extends ChangeNotifier {
   final List<CartItem> _items = [];
   double _gstPercentage = 18.0; // Default GST percentage
   double _discountPercentage = 0.0; // Default discount percentage
-  
+
   List<CartItem> get items => List.unmodifiable(_items);
-  
+
   // Update GST percentage
   void updateGSTPercentage(double percentage) {
     _gstPercentage = percentage;
     notifyListeners();
   }
-  
+
   // Update discount percentage
   void updateDiscountPercentage(double percentage) {
     _discountPercentage = percentage;
     notifyListeners();
   }
-  
+
   // Get GST percentage
   double get gstPercentage => _gstPercentage;
-  
+
   // Get discount percentage
   double get discountPercentage => _discountPercentage;
-  
+
   void addItem(CartItem item) {
     final existingIndex = _items.indexWhere((i) => i.id == item.id);
     if (existingIndex >= 0) {
@@ -108,52 +126,56 @@ class CartManager extends ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
   }
-  
+
   void updateQuantity(String id, int quantity) {
     final item = _items.firstWhere((i) => i.id == id);
     item.quantity = quantity;
     notifyListeners();
   }
-  
+
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-  
+
   void clear() {
     _items.clear();
     notifyListeners();
   }
-  
+
   double get subtotal {
     return _items.fold(0.0, (sum, item) => sum + item.totalPrice);
   }
-  
+
   double get totalWithTax {
     final tax = PriceUtils.calculateTax(subtotal, 8.0); // 8% tax
     return subtotal + tax;
   }
-  
+
   double get totalDiscount {
-    return _items.fold(0.0, (sum, item) => 
-      sum + ((item.price - item.effectivePrice) * item.quantity));
+    return _items.fold(0.0, (sum, item) =>
+        sum + ((item.price - item.effectivePrice) * item.quantity));
   }
-  
+
   double get gstAmount {
     return PriceUtils.calculateTax(subtotal, _gstPercentage); // Dynamic GST percentage
   }
-  
+
   double get finalTotal {
     return subtotal + gstAmount;
   }
-  
+
   double get finalTotalWithShipping {
     return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
   }
+
+  int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
+
+  String get displayCurrencySymbol => '\$'; // Default
 }
 
 // Wishlist item model
@@ -164,16 +186,16 @@ class WishlistItem {
   final double discountPrice;
   final String? image;
   final String currencySymbol;
-  
+
   WishlistItem({
     required this.id,
     required this.name,
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '$',
+    this.currencySymbol = '\$',
   });
-  
+
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
 }
 
@@ -184,43 +206,44 @@ class WishlistManager extends ChangeNotifier {
   }
 
   final List<WishlistItem> _items = [];
-  
+
   List<WishlistItem> get items => List.unmodifiable(_items);
-  
+
   void addItem(WishlistItem item) {
     if (!_items.any((i) => i.id == item.id)) {
       _items.add(item);
       notifyListeners();
     }
   }
-  
+
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
   }
-  
+
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-  
+
   void clear() {
     _items.clear();
     notifyListeners();
   }
-  
+
   bool isInWishlist(String id) {
     return _items.any((item) => item.id == id);
   }
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
+// Note: Using mock values since form logic was incomplete in provided snippet
+final String gstNumber = 'GST_NUMBER_PLACEHOLDER';
+final String selectedCategory = 'CATEGORY_PLACEHOLDER';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+  'storeName': 'My Store',
+  'address': '123 Main St',
+  'email': 'support@example.com',
+  'phone': '(123) 456-7890',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -238,9 +261,9 @@ class DynamicAppSync {
   DynamicAppSync._internal();
 
   IO.Socket? _socket;
-  final StreamController<Map<String, dynamic>> _updateController = 
+  final StreamController<Map<String, dynamic>> _updateController =
       StreamController<Map<String, dynamic>>.broadcast();
-  
+
   bool _isConnected = false;
   String? _adminId;
 
@@ -251,7 +274,7 @@ class DynamicAppSync {
     if (_isConnected && _socket != null) return;
 
     _adminId = adminId;
-    
+
     try {
       final options = {
         'transports': ['websocket'],
@@ -264,7 +287,7 @@ class DynamicAppSync {
 
       _socket = IO.io('$apiBase/real-time-updates', options);
       _setupSocketListeners();
-      
+
     } catch (e) {
       print('DynamicAppSync: Error connecting: $e');
     }
@@ -276,7 +299,7 @@ class DynamicAppSync {
     _socket!.onConnect((_) {
       print('DynamicAppSync: Connected');
       _isConnected = true;
-      
+
       if (_adminId != null && _adminId!.isNotEmpty) {
         _socket!.emit('join-admin-room', {'adminId': _adminId});
       }
@@ -321,101 +344,7 @@ class DynamicAppSync {
   }
 }
 
-// Function to load dynamic product data from backend
-Future<void> loadDynamicProductData() async {
-  try {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    
-    // Get dynamic admin ID
-    final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: ${adminId}');
-    
-    final response = await http.get(
-      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-      headers: {'Content-Type': 'application/json'},
-    );
-    
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['success'] == true && data['pages'] != null) {
-        final pages = data['pages'] as List;
-        final newProducts = <Map<String, dynamic>>[];
-        
-        // Extract products from all widgets
-        for (var page in pages) {
-          if (page['widgets'] != null) {
-            for (var widget in page['widgets']) {
-              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
-                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
-                newProducts.addAll(products);
-              }
-            }
-          }
-        }
-        
-        setState(() {
-          productCards = newProducts;
-          isLoading = false;
-        });
-        
-        print('✅ Loaded ${productCards.length} dynamic products');
-      } else {
-        throw Exception('Invalid response format');
-      }
-    } else {
-      throw Exception('HTTP ${response.statusCode}');
-    }
-  } catch (e) {
-    print('❌ Error loading dynamic data: $e');
-    setState(() {
-      errorMessage = e.toString();
-      isLoading = false;
-    });
-  }
-}
-
-// Real-time updates with WebSocket
-final DynamicAppSync _appSync = DynamicAppSync();
-StreamSubscription? _updateSubscription;
-
-void startRealTimeUpdates() async {
-  final adminId = await AdminManager.getCurrentAdminId();
-  if (adminId != null) {
-    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-    
-    _updateSubscription = _appSync.updates.listen((update) {
-      if (!mounted) return;
-      
-      final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: $type');
-      
-      switch (type) {
-        case 'home-page':
-        case 'dynamic-update':
-          loadDynamicProductData();
-          break;
-      }
-    });
-  }
-}
-
-@override
-void initState() {
-  super.initState();
-  loadDynamicProductData();
-  startRealTimeUpdates();
-}
-
-@override
-void dispose() {
-  _updateSubscription?.cancel();
-  _appSync.dispose();
-  super.dispose();
-}
-
+// Removed global loadDynamicProductData and startRealTimeUpdates as they were causing setState errors and are handled in HomePage
 
 void main() => runApp(const MyApp());
 
@@ -435,7 +364,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme( // Changed from CardThemeData
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
@@ -506,7 +435,7 @@ class SessionManager {
 // Dynamic Admin ID Detection
 class AdminManager {
   static String? _currentAdminId;
-  
+
   static Future<String> getCurrentAdminId() async {
     if (_currentAdminId != null) return _currentAdminId!;
 
@@ -521,15 +450,15 @@ class AdminManager {
     print('✅ Admin ID locked: $adminId');
     return adminId;
   }
-  
+
   // Auto-detect admin ID from backend
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.27.148.1:5000/api/admin/app-info'),
+        Uri.parse('${Environment.apiBase}/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true && data['data'] != null) {
@@ -545,7 +474,7 @@ class AdminManager {
     }
     return null;
   }
-  
+
   // Method to set admin ID dynamically
   static Future<void> setAdminId(String adminId) async {
     throw UnsupportedError('Admin ID is immutable in generated apps');
@@ -579,7 +508,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final response = await http.get(
         Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
@@ -607,9 +536,9 @@ class _SplashScreenState extends State<SplashScreen> {
         });
       }
     }
-    
+
     await Future.delayed(const Duration(seconds: 3));
-    
+
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -701,7 +630,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.27.148.1:5000/api/login'),
+        Uri.parse('${Environment.apiBase}/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -710,7 +639,7 @@ class _SignInPageState extends State<SignInPage> {
           'appId': ApiConfig.appId,
         }),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
@@ -970,7 +899,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: 2.718281828459045'),
+            content: Text('Failed: \${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1008,80 +937,94 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-              TextField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(
-                  labelText: 'First Name',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                textCapitalization: TextCapitalization.words,
+            TextField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(
+                labelText: 'First Name',
+                prefixIcon: Icon(Icons.person),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Last Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                textCapitalization: TextCapitalization.words,
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(
+                labelText: 'Last Name',
+                prefixIcon: Icon(Icons.person_outline),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone),
-                  hintText: '10 digit number',
-                ),
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                prefixIcon: Icon(Icons.phone),
+                hintText: '10 digit number',
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email ID',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
+              keyboardType: TextInputType.phone,
+              maxLength: 10,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email ID',
+                prefixIcon: Icon(Icons.email),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 ),
-                obscureText: _obscurePassword,
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _createAccount,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Create Account', style: TextStyle(fontSize: 16)),
+              obscureText: _obscurePassword,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _createAccount,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-            ],
-          ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Create Account', style: TextStyle(fontSize: 16)),
+            ),
+          ],
         ),
       ),
     );
+  }
+}
+
+// Helper classes for missing dependencies
+class AuthHelper {
+  static Future<bool> isAdmin() async {
+    // Mock implementation
+    return false;
+  }
+}
+
+class ApiService {
+  Future<Map<String, dynamic>> getUserProfile() async {
+    // Mock implementation
+    return {'firstName': 'User', 'lastName': 'Name'};
   }
 }
 
@@ -1123,8 +1066,6 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  // Real-time updates removed - app updates dynamically via WebSocket
-
   Future<void> _loadDynamicData() async {
     setState(() => _isLoading = true);
     await _loadDynamicAppConfig();
@@ -1139,7 +1080,7 @@ class _HomePageState extends State<HomePage> {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
       print('🔍 Home page using admin ID: ${adminId}');
-      
+
       final response = await http.get(
         Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
@@ -1176,7 +1117,7 @@ class _HomePageState extends State<HomePage> {
               }
             }
           }
-          
+
           // Sort widgets to ensure HeaderWidget appears first
           extractedWidgets.sort((a, b) {
             bool aIsHeader = a['name'] == 'HeaderWidget';
@@ -1351,7 +1292,7 @@ class _HomePageState extends State<HomePage> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
-              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center : 
+              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center :
                            textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
                 if (textAlign != 'right')
@@ -1373,7 +1314,7 @@ class _HomePageState extends State<HomePage> {
                 if (textAlign != 'right') const SizedBox(width: 6),
                 Text(
                   appName,
-                  textAlign: textAlign == 'center' ? TextAlign.center : 
+                  textAlign: textAlign == 'center' ? TextAlign.center :
                            textAlign == 'right' ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
                     color: textColor,
@@ -1740,10 +1681,10 @@ class _HomePageState extends State<HomePage> {
         final autoPlayInterval = int.tryParse(props['autoPlayInterval']?.toString() ?? '3') ?? 3;
         final showIndicators = props['showIndicators'] ?? true;
         final enableInfiniteScroll = true;
-        
+
         // Use dynamic slider images from API like web preview
         List<Map<String, dynamic>> sliderImages = [];
-        
+
         // Find ImageSliderWidget in dynamic home widgets and extract sliderImages
         if (_homeWidgets.isNotEmpty) {
           for (var widget in _homeWidgets) {
@@ -1756,7 +1697,7 @@ class _HomePageState extends State<HomePage> {
             }
           }
         }
-        
+
         // Fallback to static props if no dynamic images found
         if (sliderImages.isEmpty && props['sliderImages'] != null) {
           sliderImages = List<Map<String, dynamic>>.from(props['sliderImages']);
@@ -2002,7 +1943,7 @@ class _HomePageState extends State<HomePage> {
           // Extract store info from the response
           final storeInfo = data['storeInfo'] ?? {};
           final designSettings = data['designSettings'] ?? {};
-          
+
           return {
             'storeName': data['shopName'] ?? storeInfo['storeName'] ?? 'My Store',
             'address': storeInfo['address'] ?? '123 Main St',
@@ -2015,9 +1956,9 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (e) {
-      print('Error loading store data: 2.718281828459045');
+      print('Error loading store data: $e');
     }
-    
+
     // Return default values if API fails
     return {
       'storeName': 'My Store',
@@ -2074,71 +2015,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Load dynamic products from backend
-  Future<List<Map<String, dynamic>>> _loadDynamicProducts() async {
-    try {
-      final adminId = await AdminManager.getCurrentAdminId();
-      final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['widgets'] != null) {
-          // Extract product data from widgets
-          List<Map<String, dynamic>> products = [];
-          
-          for (var widget in data['widgets']) {
-            if (widget['name'] == 'ProductGridWidget' || 
-                widget['name'] == 'Catalog View Card' ||
-                widget['name'] == 'Product Detail Card') {
-              final productCards = widget['properties']?['productCards'] ?? [];
-              products.addAll(List<Map<String, dynamic>>.from(productCards));
-            }
-          }
-          
-          return products;
-        }
-      }
-    } catch (e) {
-      print('Error loading products: 2.718281828459045');
-    }
-    
-    return [];
-  }
-
-  // Quantity management methods
-  int _getProductQuantity(String productId) {
-    return _productQuantities[productId] ?? 1;
-  }
-
-  void _incrementQuantity(String productId) {
-    final currentQuantity = _getProductQuantity(productId);
-    if (currentQuantity < 10) {
-      setState(() {
-        _productQuantities[productId] = currentQuantity + 1;
-      });
-    }
-  }
-
-  void _decrementQuantity(String productId) {
-    final currentQuantity = _getProductQuantity(productId);
-    if (currentQuantity > 1) {
-      setState(() {
-        _productQuantities[productId] = currentQuantity - 1;
-      });
-    }
-  }
-
-  int _getTotalCartQuantity() {
-    return _productQuantities.values.fold(0, (sum, quantity) => sum + quantity);
-  }
-
-  bool _canAddToCart() {
-    return _getTotalCartQuantity() < 10;
-  }
-
   // Build individual product card
   Widget _buildProductCard(Map<String, dynamic> product, int index, {Map<String, dynamic>? styleProps}) {
     final String productId = 'product_' + index.toString();
@@ -2149,13 +2025,13 @@ class _HomePageState extends State<HomePage> {
     final Color borderColor = _colorFromHex(props['borderColor']?.toString()) ?? Colors.transparent;
     final Color priceColor = _colorFromHex(props['priceColor']?.toString()) ?? Colors.blue;
     final Color discountBadgeColor = _colorFromHex(props['discountBadgeColor']?.toString()) ?? Colors.redAccent;
-    
+
     // Try multiple possible price field names
     final String? priceField1 = product['price']?.toString();
     final String? priceField2 = product['basePrice']?.toString();
     final String? priceField3 = product['currentPrice']?.toString();
     final String? priceField4 = product['productPrice']?.toString();
-    
+
     final String rawPrice = priceField1 ?? priceField2 ?? priceField3 ?? priceField4 ?? '99.99';
     final double basePrice = PriceUtils.parsePrice(rawPrice);
     final String currencySymbol = _currencySymbolForProduct(product);
@@ -2173,16 +2049,16 @@ class _HomePageState extends State<HomePage> {
     final bool isSoldOut = quantityAvailable <= 0;
     final String discountLabel;
     if (hasPercentDiscount) {
-      discountLabel = '0% OFF';
+      discountLabel = '${badgeDiscountPercent.toInt()}% OFF';
     } else {
       discountLabel = 'OFFER';
     }
-    
+
     final String stockLabel;
     if (isSoldOut) {
       stockLabel = 'SOLD OUT';
     } else {
-      stockLabel = 'In stock: 0';
+      stockLabel = 'In stock: $quantityAvailable';
     }
     final bool isInWishlist = _wishlistManager.isInWishlist(productId);
 
@@ -2346,7 +2222,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 );
                               }
-                              return SizedBox.shrink();
+                              return const SizedBox.shrink();
                             },
                           ),
                       ],
@@ -2362,29 +2238,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Helper methods for social sharing
-  void _shareToPlatform(String platform, String link, String text) {
-    // Simple implementation - in real app would use url_launcher or share_plus
-    print('Share to ' + platform + ': ' + link + ' with text: ' + text);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Sharing to ' + platform + '...')),
-    );
-  }
-
-  void _copyShareLink(String link) {
-    // Simple implementation - in real app would use clipboard
-    print('Copy link: ' + link);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard!')),
-    );
-  }
-
   // Helper method to convert hex color to Color
   Color _colorFromHex(String? hexColor) {
     if (hexColor == null || hexColor.isEmpty) return Colors.blue;
-    
+
     String localFormattedColor = hexColor.toUpperCase().replaceAll('#', '');
-    
+
     if (localFormattedColor.length == 6) {
       localFormattedColor = 'FF' + localFormattedColor;
     } else if (localFormattedColor.length == 8) {
@@ -2392,11 +2251,11 @@ class _HomePageState extends State<HomePage> {
     } else {
       return Colors.blue;
     }
-    
+
     try {
       return Color(int.parse('0x' + localFormattedColor));
     } catch (e) {
-      print('Invalid color: ' + hexColor);
+      print('Invalid color: $hexColor');
       return Colors.blue;
     }
   }
@@ -2457,14 +2316,14 @@ class _HomePageState extends State<HomePage> {
                                     : const Icon(Icons.image),
                               ),
                               const SizedBox(width: 12),
-                              Expanded( 
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     // Show current price (effective price)
                                     Text(
-                                      PriceUtils.formatPrice(item.effectivePrice),
+                                      PriceUtils.formatPrice(item.effectivePrice, currency: item.currencySymbol),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -2474,7 +2333,7 @@ class _HomePageState extends State<HomePage> {
                                     // Show original price if there's a discount
                                     if (item.discountPrice > 0 && item.price != item.discountPrice)
                                       Text(
-                                        PriceUtils.formatPrice(item.price),
+                                        PriceUtils.formatPrice(item.price, currency: item.currencySymbol),
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration: TextDecoration.lineThrough,
@@ -2666,6 +2525,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  void _handleBuyNow() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Proceeding to checkout...')),
+    );
+    // Add navigation logic here if needed
+  }
+
   Widget _buildWishlistPage() {
     return Scaffold(
       appBar: AppBar(
@@ -2761,7 +2627,8 @@ class _HomePageState extends State<HomePage> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          children: [            Center(
+          children: [
+            Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2790,10 +2657,10 @@ class _HomePageState extends State<HomePage> {
                       final userData = snapshot.data ?? {};
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
-                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
+                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty)
                           ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
-                      
+
                       return Text(
                         displayName,
                         style: const TextStyle(
@@ -2830,7 +2697,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-            ),          ],
+            ),
+          ],
         ),
       ),
     );
@@ -2879,44 +2747,8 @@ class _HomePageState extends State<HomePage> {
       final userProfile = await apiService.getUserProfile();
       return userProfile;
     } catch (e) {
-      print('Error fetching user profile: 2.718281828459045');
+      print('Error fetching user profile: $e');
       return {};
     }
   }
-
 }
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: _currentPageIndex,
-      onTap: _onItemTapped,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.blue,
-      unselectedItemColor: Colors.grey,
-      items: [
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_wishlistManager.items.length}'),
-            isLabelVisible: _wishlistManager.items.length > 0,
-            child: const Icon(Icons.favorite),
-          ),
-          label: 'Wishlist',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_cartManager.items.length}'),
-            isLabelVisible: _cartManager.items.length > 0,
-            child: const Icon(Icons.shopping_cart),
-          ),
-          label: 'Cart',
-        ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
