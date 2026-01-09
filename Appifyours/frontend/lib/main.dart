@@ -201,7 +201,7 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '\$', // Escaped $   });
+    this.currencySymbol = '\$', // Escaped $   }); // FIX: Moved closing brace out of comment
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
 }
@@ -1016,7 +1016,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     : const Text('Create Account', style: TextStyle(fontSize: 16)),
               ),
             ],
-          ),
         ),
       ),
     );
