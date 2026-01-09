@@ -1189,9 +1189,9 @@ class _HomePageState extends State<HomePage> {
 
       // Clear ONLY notification badges when opening Cart/Wishlist.
       // Do NOT clear the actual cart/wishlist items.
-      if (index == 1) {
+      if (index == 2) { // Cart page at index 2
         _cartNotificationCount = 0;
-      } else if (index == 2) {
+      } else if (index == 1) { // Wishlist page at index 1
         _wishlistNotificationCount = 0;
       }
     });
@@ -1292,15 +1292,70 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Toggle wishlist handler
+  void _toggleWishlist(Map<String, dynamic> product, int index) {
+    final String productId = 'product_${index.toString()}';
+    final String productName = product['productName'] ?? product['name'] ?? 'Product';
+    
+    // Try multiple possible price field names
+    final String? priceField1 = product['price']?.toString();
+    final String? priceField2 = product['basePrice']?.toString();
+    final String? priceField3 = product['currentPrice']?.toString();
+    final String? priceField4 = product['productPrice']?.toString();
+    
+    final String rawPrice = priceField1 ?? priceField2 ?? priceField3 ?? priceField4 ?? '99.99';
+    final double basePrice = PriceUtils.parsePrice(rawPrice);
+    final double badgeDiscountPercent = double.tryParse((product['discountPercent'] ?? '0').toString()) ?? 0.0;
+    final double manualDiscountPrice = PriceUtils.parsePrice(product['discountPrice']?.toString() ?? '0.00');
+    final bool hasPercentDiscount = badgeDiscountPercent > 0;
+    final double discountedPriceFromPercent = hasPercentDiscount ? basePrice * (1 - badgeDiscountPercent / 100) : 0.0;
+    final double effectivePrice = hasPercentDiscount
+        ? discountedPriceFromPercent
+        : (manualDiscountPrice > 0 ? manualDiscountPrice : basePrice);
+    final String? image = product['imageAsset'] ?? product['image'];
+    final String currencySymbol = _currencySymbolForProduct(product);
+    
+    if (_wishlistManager.isInWishlist(productId)) {
+      _wishlistManager.removeItem(productId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Removed from wishlist'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } else {
+      final wishlistItem = WishlistItem(
+        id: productId,
+        name: productName,
+        price: basePrice,
+        discountPrice: effectivePrice,
+        image: image,
+        currencySymbol: currencySymbol,
+      );
+      
+      _wishlistManager.addItem(wishlistItem);
+      setState(() {
+        _wishlistNotificationCount += 1;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Added to wishlist'),
+          backgroundColor: Colors.pink,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(
       index: _currentPageIndex,
       children: [
-        _buildHomePage(),
-        _buildCartPage(),
-        _buildWishlistPage(),
-        _buildProfilePage(),
+        _buildHomePage(),      // Index 0: Home
+        _buildWishlistPage(),  // Index 1: Wishlist (FIXED)
+        _buildCartPage(),      // Index 2: Cart (FIXED)
+        _buildProfilePage(),   // Index 3: Profile
       ],
     ),
     bottomNavigationBar: _buildBottomNavigationBar(),
@@ -2350,6 +2405,27 @@ class _HomePageState extends State<HomePage> {
                               color: Colors.grey[200],
                               child: const Icon(Icons.image, size: 40, color: Colors.grey),
                             ),
+                    ),
+                  ),
+                  // Heart icon for wishlist (FIXED)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: GestureDetector(
+                      onTap: () => _toggleWishlist(product, index),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          isInWishlist ? Icons.favorite : Icons.favorite_border,
+                          color: isInWishlist ? Colors.red : Colors.grey,
+                          size: 18,
+                        ),
+                      ),
                     ),
                   ),
                   if (hasDiscount)
