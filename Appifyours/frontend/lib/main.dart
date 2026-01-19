@@ -1,13 +1,3 @@
-
-
-Here is the fixed code. I have resolved the compilation errors by:
-
-1.  **Moving global functions** (like `loadDynamicProductData` and `initState` overrides) into the `_HomePageState` class where `setState` and `mounted` are valid.
-2.  **Creating missing classes** (`Environment`, `ApiService`, `AuthHelper`) so the code compiles without needing external configuration files.
-3.  **Fixing the `CartItem` and `CartManager`** classes to include missing properties (`currencySymbol`, `totalQuantity`) that were being used in your UI logic.
-4.  **Correcting Flutter syntax errors** (string interpolation, `CardThemeData` vs `CardTheme`, duplicate BottomNavigationBar).
-
-```dart
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -2947,4 +2937,4 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
-```
+
