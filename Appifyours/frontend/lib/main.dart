@@ -1,13 +1,16 @@
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:http/http.dart' as http;
-import 'package:appifyours/config/environment.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+// Define Environment class to replace the missing import
+class Environment {
+  static const String apiBase = 'http://10.239.130.5:5000';
+}
 
 // Define PriceUtils class
 class PriceUtils {
@@ -245,13 +248,13 @@ class WishlistManager extends ChangeNotifier {
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
+final String gstNumber = 'GST123456';
+final String selectedCategory = 'All';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+  'storeName': 'My Store',
+  'address': '123 Main St',
+  'email': 'support@example.com',
+  'phone': '(123) 456-7890',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -361,6 +364,25 @@ class AuthHelper {
   }
 }
 
+// Define ApiService class
+class ApiService {
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      // In a real app, you would make an API call to get the user profile
+      // For now, return a mock profile
+      return {
+        'firstName': 'John',
+        'lastName': 'Doe',
+        'email': 'john.doe@example.com',
+        'phone': '1234567890',
+      };
+    } catch (e) {
+      print('Error fetching user profile: $e');
+      return {};
+    }
+  }
+}
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -379,7 +401,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: const CardTheme(
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
