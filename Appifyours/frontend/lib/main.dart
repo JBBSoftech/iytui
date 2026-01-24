@@ -213,72 +213,78 @@ class WishlistManager extends ChangeNotifier {
   }
 }
 
-// Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
-final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
-};
+  // Dynamic Configuration from Form
+  String gstNumber = '$gstNumber';
+  String selectedCategory = '$selectedCategory';
+  Map<String, dynamic> storeInfo = {
+    'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
+    'address': '${storeInfo['address'] ?? '123 Main St'}',
+    'email': '${storeInfo['email'] ?? 'support@example.com'}',
+    'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+  };
 
-// Subscription and delivery settings
-String _activePlanName = 'Basic';
-bool _showDeliveryOverlay = false;
-bool _showChatbotOverlay = false;
-bool _showChatbotTopBanner = true;
-final List<Map<String, String>> _chatbotMessages = <Map<String, String>>[
-  {'from': 'bot', 'text': 'Hi! How can I help you today?'},
-];
-final TextEditingController _chatbotInputController = TextEditingController();
+  // Subscription and delivery settings
+  String _activePlanName = 'Basic';
+  bool _showDeliveryOverlay = false;
+  bool _showChatbotOverlay = false;
+  bool _showChatbotTopBanner = true;
+  final List<Map<String, String>> _chatbotMessages = <Map<String, String>>[
+    {'from': 'bot', 'text': 'Hi! How can I help you today?'},
+  ];
+  final TextEditingController _chatbotInputController = TextEditingController();
 
-// Icon colors (configurable based on subscription)
-Color _deliveryIconColor = const Color(0xFF0070BA);
-Color _chatbotIconColor = const Color(0xFF0070BA);
+  // Icon colors (configurable based on subscription)
+  Color _deliveryIconColor = const Color(0xFF0070BA);
+  Color _chatbotIconColor = const Color(0xFF0070BA);
 
-// Subscription methods
-bool _shouldShowDeliveryIcon() {
-  return _activePlanName.toLowerCase().contains('standard') || 
-         _activePlanName.toLowerCase().contains('premium');
-}
-
-bool _shouldShowChatbotIcon() {
-  return _activePlanName.toLowerCase().contains('premium');
-}
-
-bool _shouldShowChatbotBanner() {
-  return _shouldShowChatbotIcon() && _showChatbotTopBanner;
-}
-
-Future<void> _loadUserSubscription() async {
-  try {
-    // Try to get actual subscription from API
-    final token = await ApiService.getUserToken();
-    if (token != null && token.isNotEmpty) {
-      final subscription = await ApiService.getCurrentSubscription(token);
-      if (subscription != null) {
-        final planName = subscription['planName'] ?? subscription['plan_name'] ?? 'Basic';
-        _activePlanName = planName.toString();
-        return;
-      }
-    }
-    
-    // Fallback to Basic if no subscription found
-    _activePlanName = 'Basic';
-  } catch (e) {
-    // Fallback to Basic on error
-    _activePlanName = 'Basic';
+  // Subscription methods
+  bool _shouldShowDeliveryIcon() {
+    return _activePlanName.toLowerCase().contains('standard') || 
+           _activePlanName.toLowerCase().contains('premium');
   }
-}
 
-// Dynamic Product Data - Will be loaded from backend
-List<Map<String, dynamic>> productCards = [];
-bool isLoading = true;
-String? errorMessage;
+  bool _shouldShowChatbotIcon() {
+    return _activePlanName.toLowerCase().contains('premium');
+  }
 
-// Quantity tracking for products
-Map<String, int> _productQuantities = {};
+  bool _shouldShowChatbotBanner() {
+    return _shouldShowChatbotIcon() && _showChatbotTopBanner;
+  }
+
+  Future<void> _loadUserSubscription() async {
+    try {
+      // Try to get actual subscription from API
+      final token = await ApiService.getUserToken();
+      if (token != null && token.isNotEmpty) {
+        final subscription = await ApiService.getCurrentSubscription(token);
+        if (subscription != null) {
+          final planName = subscription['planName'] ?? subscription['plan_name'] ?? 'Basic';
+          setState(() {
+            _activePlanName = planName.toString();
+          });
+          return;
+        }
+      }
+      
+      // Fallback to Basic if no subscription found
+      setState(() {
+        _activePlanName = 'Basic';
+      });
+    } catch (e) {
+      // Fallback to Basic on error
+      setState(() {
+        _activePlanName = 'Basic';
+      });
+    }
+  }
+
+  // Dynamic Product Data - Will be loaded from backend
+  List<Map<String, dynamic>> productCards = [];
+  bool isLoading = true;
+  String? errorMessage;
+
+  // Quantity tracking for products
+  Map<String, int> _productQuantities = {};
 
 // WebSocket Real-time Sync Service
 class DynamicAppSync {
@@ -577,7 +583,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.239.130.5:5000/api/admin/app-info'),
+        Uri.parse('http://10.202.11.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -752,7 +758,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.239.130.5:5000/api/login'),
+        Uri.parse('http://10.202.11.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
