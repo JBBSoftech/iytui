@@ -2884,11 +2884,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
 }
   Widget _buildBottomNavigationBar() {
     return BottomNavigationBar(
