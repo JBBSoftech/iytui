@@ -4,38 +4,19 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-
-// Define Environment class locally to resolve import error
-class Environment {
-  static String apiBase = 'https://appifyours.com';
-}
-
-// Define AuthHelper class to resolve missing class error
-class AuthHelper {
-  static Future<bool> isAdmin() async {
-    return false;
-  }
-}
-
-// Define ApiService class to resolve missing class error
-class ApiService {
-  Future<Map<String, dynamic>> getUserProfile() async {
-    return {};
-  }
-}
+import 'package:frontend/config/environment.dart';
 
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
-    return '$currency\$${price.toStringAsFixed(2)}';
+    return '$currency\${price.toStringAsFixed(2)}';
   }
   
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^\d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
     return double.tryParse(numericString) ?? 0.0;
   }
   
@@ -51,18 +32,6 @@ class PriceUtils {
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
-  }
-
-  // Added missing method
-  static String currencySymbolFromCode(String code) {
-     if (code.isEmpty) return '\$';
-     switch (code.toUpperCase()) {
-       case 'USD': return '\$';
-       case 'INR': return '₹';
-       case 'EUR': return '€';
-       case 'GBP': return '£';
-       default: return '\$';
-     }
   }
   
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
@@ -90,8 +59,7 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  final String currencySymbol; // Added field
-
+  
   CartItem({
     required this.id,
     required this.name,
@@ -99,7 +67,6 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
-    this.currencySymbol = '\$', // Added default
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -187,12 +154,6 @@ class CartManager extends ChangeNotifier {
   double get finalTotalWithShipping {
     return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
   }
-
-  // Added missing getter
-  int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
-  
-  // Added missing getter
-  String get displayCurrencySymbol => _items.isNotEmpty ? _items.first.currencySymbol : '\$';
 }
 
 // Wishlist item model
@@ -210,7 +171,7 @@ class WishlistItem {
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '\$', // Fixed string interpolation
+    this.currencySymbol = '$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -253,13 +214,13 @@ class WishlistManager extends ChangeNotifier {
 }
 
 // Dynamic Configuration from Form
-final String gstNumber = '\$gstNumber';
-final String selectedCategory = '\$selectedCategory';
+final String gstNumber = '$gstNumber';
+final String selectedCategory = '$selectedCategory';
 final Map<String, dynamic> storeInfo = {
-  'storeName': '\${storeInfo[\'storeName\'] ?? \'My Store\'}',
-  'address': '\${storeInfo[\'address\'] ?? \'123 Main St\'}',
-  'email': '\${storeInfo[\'email\'] ?? \'support@example.com\'}',
-  'phone': '\${storeInfo[\'phone\'] ?? \'(123) 456-7890\'}',
+  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
+  'address': '${storeInfo['address'] ?? '123 Main St'}',
+  'email': '${storeInfo['email'] ?? 'support@example.com'}',
+  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
 };
 
 // Dynamic Product Data - Will be loaded from backend
@@ -301,11 +262,11 @@ class DynamicAppSync {
         'timeout': 5000,
       };
 
-      _socket = IO.io('\$apiBase/real-time-updates', options);
+      _socket = IO.io('$apiBase/real-time-updates', options);
       _setupSocketListeners();
       
     } catch (e) {
-      print('DynamicAppSync: Error connecting: \$e');
+      print('DynamicAppSync: Error connecting: $e');
     }
   }
 
@@ -327,7 +288,7 @@ class DynamicAppSync {
     });
 
     _socket!.on('dynamic-update', (data) {
-      print('DynamicAppSync: Received update: \$data');
+      print('DynamicAppSync: Received update: $data');
       if (!_updateController.isClosed) {
         _updateController.add(Map<String, dynamic>.from(data));
       }
@@ -361,18 +322,19 @@ class DynamicAppSync {
 }
 
 // Function to load dynamic product data from backend
-// Note: Removed setState calls as this is a global function and cannot call setState
 Future<void> loadDynamicProductData() async {
   try {
-    isLoading = true;
-    errorMessage = null;
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
     
     // Get dynamic admin ID
     final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: \${adminId}');
+    print('🔍 Loading dynamic data with admin ID: ${adminId}');
     
     final response = await http.get(
-      Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
       headers: {'Content-Type': 'application/json'},
     );
     
@@ -394,20 +356,24 @@ Future<void> loadDynamicProductData() async {
           }
         }
         
-        productCards = newProducts;
-        isLoading = false;
+        setState(() {
+          productCards = newProducts;
+          isLoading = false;
+        });
         
-        print('✅ Loaded \${productCards.length} dynamic products');
+        print('✅ Loaded ${productCards.length} dynamic products');
       } else {
         throw Exception('Invalid response format');
       }
     } else {
-      throw Exception('HTTP \${response.statusCode}');
+      throw Exception('HTTP ${response.statusCode}');
     }
   } catch (e) {
-    print('❌ Error loading dynamic data: \$e');
-    errorMessage = e.toString();
-    isLoading = false;
+    print('❌ Error loading dynamic data: $e');
+    setState(() {
+      errorMessage = e.toString();
+      isLoading = false;
+    });
   }
 }
 
@@ -421,9 +387,10 @@ void startRealTimeUpdates() async {
     _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
     
     _updateSubscription = _appSync.updates.listen((update) {
-      // Removed mounted check as it is not available globally
+      if (!mounted) return;
+      
       final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: \$type');
+      print('📱 Received real-time update: $type');
       
       switch (type) {
         case 'home-page':
@@ -435,8 +402,6 @@ void startRealTimeUpdates() async {
   }
 }
 
-// Commented out orphaned initState and dispose methods that were outside any class
-/*
 @override
 void initState() {
   super.initState();
@@ -450,7 +415,6 @@ void dispose() {
   _appSync.dispose();
   super.dispose();
 }
-*/
 
 
 void main() => runApp(const MyApp());
@@ -471,7 +435,7 @@ class MyApp extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
-      cardTheme: const CardTheme( // Fixed CardThemeData to CardTheme
+      cardTheme: const CardThemeData(
         elevation: 4,
         shadowColor: Colors.black12,
         shape: RoundedRectangleBorder(
@@ -517,8 +481,8 @@ class SessionManager {
     required String loadedAppName,
   }) async {
     appName = loadedAppName;
-    print('🔍 Admin config loaded: \$loadedAppName');
-    print('🎨 App name set globally: \${SessionManager.appName}');
+    print('🔍 Admin config loaded: $loadedAppName');
+    print('🎨 App name set globally: ${SessionManager.appName}');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_name', appName);
@@ -530,8 +494,8 @@ class SessionManager {
   }) async {
     currentUserId = userId;
     authToken = token;
-    print('✅ User logged in: \$userId');
-    print('🔐 Session bound to userId: \$userId');
+    print('✅ User logged in: $userId');
+    print('🔐 Session bound to userId: $userId');
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('auth_token', token);
@@ -554,7 +518,7 @@ class AdminManager {
     );
 
     _currentAdminId = adminId;
-    print('✅ Admin ID locked: \$adminId');
+    print('✅ Admin ID locked: $adminId');
     return adminId;
   }
   
@@ -577,7 +541,7 @@ class AdminManager {
         }
       }
     } catch (e) {
-      print('Auto-detection failed: \$e');
+      print('Auto-detection failed: $e');
     }
     return null;
   }
@@ -609,11 +573,11 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Splash screen using admin ID: \${adminId}');
+      print('🔍 Splash screen using admin ID: ${adminId}');
 
       // Load admin splash config for this fixed adminId
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/admin/splash?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
       );
       
       if (response.statusCode == 200) {
@@ -624,10 +588,10 @@ class _SplashScreenState extends State<SplashScreen> {
           setState(() {
             _appName = SessionManager.appName;
           });
-          print('✅ Splash screen loaded app name: \${_appName}');
+          print('✅ Splash screen loaded app name: ${_appName}');
         }
       } else {
-        print('⚠️ Splash screen API error: \${response.statusCode}');
+        print('⚠️ Splash screen API error: ${response.statusCode}');
         if (mounted) {
           setState(() {
             _appName = SessionManager.appName;
@@ -635,7 +599,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: \${e}');
+      print('Error fetching app name: ${e}');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -958,7 +922,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('\${Environment.apiBase}/api/signup'),
+        Uri.parse('${Environment.apiBase}/api/signup'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'firstName': firstName,
@@ -1174,10 +1138,10 @@ class _HomePageState extends State<HomePage> {
     try {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
-      print('🔍 Home page using admin ID: \${adminId}');
+      print('🔍 Home page using admin ID: ${adminId}');
       
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -1236,11 +1200,11 @@ class _HomePageState extends State<HomePage> {
             _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
             _isLoading = false;
           });
-          print('✅ Loaded \${_dynamicProductCards.length} products from backend');
+          print('✅ Loaded ${_dynamicProductCards.length} products from backend');
         }
       }
     } catch (e) {
-      print('❌ Error loading dynamic data: \$e');
+      print('❌ Error loading dynamic data: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -2015,7 +1979,8 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-          );
+          ),
+        );
 
       default:
         return const SizedBox.shrink();
@@ -2027,7 +1992,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2114,7 +2079,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.get(
-        Uri.parse('\${Environment.apiBase}/api/get-form?adminId=\${adminId}&appId=\${ApiConfig.appId}'),
+        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -2381,7 +2346,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 );
                               }
-                              return const SizedBox.shrink();
+                              return SizedBox.shrink();
                             },
                           ),
                       ],
@@ -2700,11 +2665,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-  
-  // Added missing method
-  void _handleBuyNow() {
-    print("Buy Now clicked");
-  }
 
   Widget _buildWishlistPage() {
     return Scaffold(
@@ -2831,7 +2791,7 @@ class _HomePageState extends State<HomePage> {
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
                       final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
-                          ? '\$firstName \$lastName'
+                          ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
                       
                       return Text(
@@ -2890,7 +2850,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('\${_cartManager.items.length}'),
+            label: Text('${_cartManager.items.length}'),
             isLabelVisible: _cartManager.items.length > 0,
             child: const Icon(Icons.shopping_cart),
           ),
@@ -2898,7 +2858,7 @@ class _HomePageState extends State<HomePage> {
         ),
         BottomNavigationBarItem(
           icon: Badge(
-            label: Text('\${_wishlistManager.items.length}'),
+            label: Text('${_wishlistManager.items.length}'),
             isLabelVisible: _wishlistManager.items.length > 0,
             child: const Icon(Icons.favorite),
           ),
@@ -2923,4 +2883,40 @@ class _HomePageState extends State<HomePage> {
       return {};
     }
   }
+
 }
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
+      currentIndex: _currentPageIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Colors.blue,
+      unselectedItemColor: Colors.grey,
+      items: [
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        BottomNavigationBarItem(
+          icon: Badge(
+            label: Text('${_wishlistManager.items.length}'),
+            isLabelVisible: _wishlistManager.items.length > 0,
+            child: const Icon(Icons.favorite),
+          ),
+          label: 'Wishlist',
+        ),
+        BottomNavigationBarItem(
+          icon: Badge(
+            label: Text('${_cartManager.items.length}'),
+            isLabelVisible: _cartManager.items.length > 0,
+            child: const Icon(Icons.shopping_cart),
+          ),
+          label: 'Cart',
+        ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.person),
+          label: 'Profile',
+        ),
+      ],
+    );
+  }
