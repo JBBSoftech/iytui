@@ -925,7 +925,7 @@ class ApiConfig {
 
   static String get baseUrl => Environment.apiBase;
 
-  static String get adminObjectId => '695fa5ceda950cba5d856267'; // Will be replaced during publish
+  static String get adminObjectId => 'ADMIN_OBJECT_ID_HERE'; // Will be replaced during publish
 
   static String get appId {
     final raw = 'APP_ID_HERE';
@@ -1021,14 +1021,14 @@ class AdminManager {
 
     String adminId = ApiConfig.adminObjectId;
 
-    if (adminId == '695fa5ceda950cba5d856267' || adminId.isEmpty) {
+    if (adminId == 'ADMIN_OBJECT_ID_HERE' || adminId.isEmpty) {
       final detected = await _autoDetectAdminId();
       if (detected != null && detected.isNotEmpty) {
         adminId = detected;
       }
     }
 
-    if (ApiConfig.adminObjectId != '695fa5ceda950cba5d856267' && ApiConfig.adminObjectId.isNotEmpty) {
+    if (ApiConfig.adminObjectId != 'ADMIN_OBJECT_ID_HERE' && ApiConfig.adminObjectId.isNotEmpty) {
       assert(
         adminId == ApiConfig.adminObjectId,
         '❌ CRITICAL: Admin ID override detected',
