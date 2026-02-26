@@ -1,25 +1,29 @@
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:http/http.dart' as http;
+import 'package:appifyours/config/environment.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/config/environment.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 // Define PriceUtils class
 class PriceUtils {
   static String formatPrice(double price, {String currency = '\$'}) {
-    return '$currency\${price.toStringAsFixed(2)}';
+    return '$currency${price.toStringAsFixed(2)}';
   }
-  
+
   // Extract numeric value from price string with any currency symbol
   static double parsePrice(String priceString) {
     if (priceString.isEmpty) return 0.0;
     // Remove all currency symbols and non-numeric characters except decimal point
-    String numericString = priceString.replaceAll(RegExp(r'[^d.]'), '');
+    String numericString = priceString.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (numericString.isEmpty) return 0.0;
     return double.tryParse(numericString) ?? 0.0;
   }
-  
+
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
@@ -33,19 +37,34 @@ class PriceUtils {
     if (priceString.contains('₨')) return '₨';
     return '\$'; // Default to dollar
   }
-  
+
+  static String currencySymbolFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'USD': return '\$';
+      case 'INR': return '₹';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'JPY': return '¥';
+      case 'KRW': return '₩';
+      case 'RUB': return '₽';
+      case 'NGN': return '₦';
+      case 'PKR': return '₨';
+      default: return '\$';
+    }
+  }
+
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
     return originalPrice * (1 - discountPercentage / 100);
   }
-  
+
   static double calculateTotal(List<double> prices) {
     return prices.fold(0.0, (sum, price) => sum + price);
   }
-  
+
   static double calculateTax(double subtotal, double taxRate) {
     return subtotal * (taxRate / 100);
   }
-  
+
   static double applyShipping(double total, double shippingFee, {double freeShippingThreshold = 100.0}) {
     return total >= freeShippingThreshold ? total : total + shippingFee;
   }
@@ -59,7 +78,8 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
-  
+  final String currencySymbol;
+
   CartItem({
     required this.id,
     required this.name,
@@ -67,8 +87,9 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
+    this.currencySymbol = '\$',
   });
-  
+
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
   double get totalPrice => effectivePrice * quantity;
 }
@@ -78,27 +99,33 @@ class CartManager extends ChangeNotifier {
   final List<CartItem> _items = [];
   double _gstPercentage = 18.0; // Default GST percentage
   double _discountPercentage = 0.0; // Default discount percentage
-  
+
   List<CartItem> get items => List.unmodifiable(_items);
-  
+
   // Update GST percentage
   void updateGSTPercentage(double percentage) {
     _gstPercentage = percentage;
     notifyListeners();
   }
-  
+
   // Update discount percentage
   void updateDiscountPercentage(double percentage) {
     _discountPercentage = percentage;
     notifyListeners();
   }
-  
+
   // Get GST percentage
   double get gstPercentage => _gstPercentage;
-  
+
   // Get discount percentage
   double get discountPercentage => _discountPercentage;
-  
+
+  // Get total quantity
+  int get totalQuantity => _items.fold(0, (sum, item) => sum + item.quantity);
+
+  // Get display currency symbol
+  String get displayCurrencySymbol => _items.isNotEmpty ? _items.first.currencySymbol : '\$';
+
   void addItem(CartItem item) {
     final existingIndex = _items.indexWhere((i) => i.id == item.id);
     if (existingIndex >= 0) {
@@ -108,49 +135,51 @@ class CartManager extends ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
   }
-  
+
   void updateQuantity(String id, int quantity) {
-    final item = _items.firstWhere((i) => i.id == id);
-    item.quantity = quantity;
-    notifyListeners();
+    final index = _items.indexWhere((i) => i.id == id);
+    if (index >= 0) {
+      _items[index].quantity = quantity;
+      notifyListeners();
+    }
   }
-  
+
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-  
+
   void clear() {
     _items.clear();
     notifyListeners();
   }
-  
+
   double get subtotal {
     return _items.fold(0.0, (sum, item) => sum + item.totalPrice);
   }
-  
+
   double get totalWithTax {
     final tax = PriceUtils.calculateTax(subtotal, 8.0); // 8% tax
     return subtotal + tax;
   }
-  
+
   double get totalDiscount {
-    return _items.fold(0.0, (sum, item) => 
+    return _items.fold(0.0, (sum, item) =>
       sum + ((item.price - item.effectivePrice) * item.quantity));
   }
-  
+
   double get gstAmount {
     return PriceUtils.calculateTax(subtotal, _gstPercentage); // Dynamic GST percentage
   }
-  
+
   double get finalTotal {
     return subtotal + gstAmount;
   }
-  
+
   double get finalTotalWithShipping {
     return PriceUtils.applyShipping(totalWithTax, 5.99); // $5.99 shipping
   }
@@ -164,16 +193,16 @@ class WishlistItem {
   final double discountPrice;
   final String? image;
   final String currencySymbol;
-  
+
   WishlistItem({
     required this.id,
     required this.name,
     required this.price,
     this.discountPrice = 0.0,
     this.image,
-    this.currencySymbol = '$',
+    this.currencySymbol = '\$',
   });
-  
+
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
 }
 
@@ -184,52 +213,55 @@ class WishlistManager extends ChangeNotifier {
   }
 
   final List<WishlistItem> _items = [];
-  
+
   List<WishlistItem> get items => List.unmodifiable(_items);
-  
+
   void addItem(WishlistItem item) {
     if (!_items.any((i) => i.id == item.id)) {
       _items.add(item);
       notifyListeners();
     }
   }
-  
+
   void removeItem(String id) {
     _items.removeWhere((item) => item.id == id);
     notifyListeners();
   }
-  
+
   void clearCart() {
     clear(); // Reuse existing clear method
   }
-  
+
   void clear() {
     _items.clear();
     notifyListeners();
   }
-  
+
   bool isInWishlist(String id) {
     return _items.any((item) => item.id == id);
   }
 }
 
+// Helper for Auth checks (Placeholder)
+class AuthHelper {
+  static Future<bool> isAdmin() async {
+    // In a real app, check user role from token or backend
+    return false;
+  }
+}
+
 // Dynamic Configuration from Form
-final String gstNumber = '$gstNumber';
-final String selectedCategory = '$selectedCategory';
-final Map<String, dynamic> storeInfo = {
-  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-  'address': '${storeInfo['address'] ?? '123 Main St'}',
-  'email': '${storeInfo['email'] ?? 'support@example.com'}',
-  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+String gstNumber = '';
+String selectedCategory = '';
+Map<String, dynamic> storeInfo = {
+  'storeName': 'My Store',
+  'address': '123 Main St',
+  'email': 'support@example.com',
+  'phone': '(123) 456-7890',
 };
 
 // Dynamic Product Data - Will be loaded from backend
 List<Map<String, dynamic>> productCards = [];
-bool isLoading = true;
-String? errorMessage;
-
-// Quantity tracking for products
-Map<String, int> _productQuantities = {};
 
 // WebSocket Real-time Sync Service
 class DynamicAppSync {
@@ -238,9 +270,9 @@ class DynamicAppSync {
   DynamicAppSync._internal();
 
   IO.Socket? _socket;
-  final StreamController<Map<String, dynamic>> _updateController = 
+  final StreamController<Map<String, dynamic>> _updateController =
       StreamController<Map<String, dynamic>>.broadcast();
-  
+
   bool _isConnected = false;
   String? _adminId;
 
@@ -251,7 +283,7 @@ class DynamicAppSync {
     if (_isConnected && _socket != null) return;
 
     _adminId = adminId;
-    
+
     try {
       final options = {
         'transports': ['websocket'],
@@ -264,7 +296,7 @@ class DynamicAppSync {
 
       _socket = IO.io('$apiBase/real-time-updates', options);
       _setupSocketListeners();
-      
+
     } catch (e) {
       print('DynamicAppSync: Error connecting: $e');
     }
@@ -276,7 +308,7 @@ class DynamicAppSync {
     _socket!.onConnect((_) {
       print('DynamicAppSync: Connected');
       _isConnected = true;
-      
+
       if (_adminId != null && _adminId!.isNotEmpty) {
         _socket!.emit('join-admin-room', {'adminId': _adminId});
       }
@@ -321,101 +353,93 @@ class DynamicAppSync {
   }
 }
 
-// Function to load dynamic product data from backend
-Future<void> loadDynamicProductData() async {
-  try {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    
-    // Get dynamic admin ID
-    final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: ${adminId}');
-    
-    final response = await http.get(
-      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-      headers: {'Content-Type': 'application/json'},
+// API Configuration - Auto-updated with your server details
+class ApiConfig {
+  static String get baseUrl => Environment.apiBase;
+  static const String adminObjectId = '695fa5ceda950cba5d856267'; // Will be replaced during publish
+  static const String appId = 'APP_ID_HERE'; // Will be replaced during publish
+}
+
+class SessionManager {
+  static const String adminUserId = ApiConfig.adminObjectId;
+  static String? currentUserId;
+  static String? authToken;
+  static String appName = 'AppifyYours';
+
+  static Future<void> initFromAdminConfig({
+    required String loadedAppName,
+  }) async {
+    appName = loadedAppName;
+    print('🔍 Admin config loaded: $loadedAppName');
+    print('🎨 App name set globally: ${SessionManager.appName}');
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_name', appName);
+  }
+
+  static Future<void> bindAuth({
+    required String userId,
+    required String token,
+  }) async {
+    currentUserId = userId;
+    authToken = token;
+    print('✅ User logged in: $userId');
+    print('🔐 Session bound to userId: $userId');
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    await prefs.setString('user_id', userId);
+  }
+}
+
+// Dynamic Admin ID Detection
+class AdminManager {
+  static String? _currentAdminId;
+
+  static Future<String> getCurrentAdminId() async {
+    if (_currentAdminId != null) return _currentAdminId!;
+
+    // Immutable single source of truth: embedded at publish time
+    final adminId = ApiConfig.adminObjectId;
+    assert(
+      adminId == ApiConfig.adminObjectId,
+      '❌ CRITICAL: Admin ID override detected',
     );
-    
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['success'] == true && data['pages'] != null) {
-        final pages = data['pages'] as List;
-        final newProducts = <Map<String, dynamic>>[];
-        
-        // Extract products from all widgets
-        for (var page in pages) {
-          if (page['widgets'] != null) {
-            for (var widget in page['widgets']) {
-              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
-                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
-                newProducts.addAll(products);
-              }
-            }
+
+    _currentAdminId = adminId;
+    print('✅ Admin ID locked: $adminId');
+    return adminId;
+  }
+
+  // Auto-detect admin ID from backend
+  static Future<String?> _autoDetectAdminId() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.0.10:5000/api/admin/app-info'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          final appInfo = data['data'];
+          final adminId = appInfo['adminId'];
+          if (adminId != null && adminId.toString().isNotEmpty) {
+            return adminId.toString();
           }
         }
-        
-        setState(() {
-          productCards = newProducts;
-          isLoading = false;
-        });
-        
-        print('✅ Loaded ${productCards.length} dynamic products');
-      } else {
-        throw Exception('Invalid response format');
       }
-    } else {
-      throw Exception('HTTP ${response.statusCode}');
+    } catch (e) {
+      print('Auto-detection failed: $e');
     }
-  } catch (e) {
-    print('❌ Error loading dynamic data: $e');
-    setState(() {
-      errorMessage = e.toString();
-      isLoading = false;
-    });
+    return null;
+  }
+
+  // Method to set admin ID dynamically
+  static Future<void> setAdminId(String adminId) async {
+    throw UnsupportedError('Admin ID is immutable in generated apps');
   }
 }
-
-// Real-time updates with WebSocket
-final DynamicAppSync _appSync = DynamicAppSync();
-StreamSubscription? _updateSubscription;
-
-void startRealTimeUpdates() async {
-  final adminId = await AdminManager.getCurrentAdminId();
-  if (adminId != null) {
-    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-    
-    _updateSubscription = _appSync.updates.listen((update) {
-      if (!mounted) return;
-      
-      final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: $type');
-      
-      switch (type) {
-        case 'home-page':
-        case 'dynamic-update':
-          loadDynamicProductData();
-          break;
-      }
-    });
-  }
-}
-
-@override
-void initState() {
-  super.initState();
-  loadDynamicProductData();
-  startRealTimeUpdates();
-}
-
-@override
-void dispose() {
-  _updateSubscription?.cancel();
-  _appSync.dispose();
-  super.dispose();
-}
-
 
 void main() => runApp(const MyApp());
 
@@ -464,94 +488,6 @@ class MyApp extends StatelessWidget {
   );
 }
 
-// API Configuration - Auto-updated with your server details
-class ApiConfig {
-  static String get baseUrl => Environment.apiBase;
-  static const String adminObjectId = '695fa5ceda950cba5d856267'; // Will be replaced during publish
-  static const String appId = 'APP_ID_HERE'; // Will be replaced during publish
-}
-
-class SessionManager {
-  static const String adminUserId = ApiConfig.adminObjectId;
-  static String? currentUserId;
-  static String? authToken;
-  static String appName = 'AppifyYours';
-
-  static Future<void> initFromAdminConfig({
-    required String loadedAppName,
-  }) async {
-    appName = loadedAppName;
-    print('🔍 Admin config loaded: $loadedAppName');
-    print('🎨 App name set globally: ${SessionManager.appName}');
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_name', appName);
-  }
-
-  static Future<void> bindAuth({
-    required String userId,
-    required String token,
-  }) async {
-    currentUserId = userId;
-    authToken = token;
-    print('✅ User logged in: $userId');
-    print('🔐 Session bound to userId: $userId');
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
-    await prefs.setString('user_id', userId);
-  }
-}
-
-// Dynamic Admin ID Detection
-class AdminManager {
-  static String? _currentAdminId;
-  
-  static Future<String> getCurrentAdminId() async {
-    if (_currentAdminId != null) return _currentAdminId!;
-
-    // Immutable single source of truth: embedded at publish time
-    final adminId = ApiConfig.adminObjectId;
-    assert(
-      adminId == ApiConfig.adminObjectId,
-      '❌ CRITICAL: Admin ID override detected',
-    );
-
-    _currentAdminId = adminId;
-    print('✅ Admin ID locked: $adminId');
-    return adminId;
-  }
-  
-  // Auto-detect admin ID from backend
-  static Future<String?> _autoDetectAdminId() async {
-    try {
-      final response = await http.get(
-        Uri.parse('http://192.168.0.10:5000/api/admin/app-info'),
-        headers: {'Content-Type': 'application/json'},
-      );
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['data'] != null) {
-          final appInfo = data['data'];
-          final adminId = appInfo['adminId'];
-          if (adminId != null && adminId.toString().isNotEmpty) {
-            return adminId.toString();
-          }
-        }
-      }
-    } catch (e) {
-      print('Auto-detection failed: $e');
-    }
-    return null;
-  }
-  
-  // Method to set admin ID dynamically
-  static Future<void> setAdminId(String adminId) async {
-    throw UnsupportedError('Admin ID is immutable in generated apps');
-  }
-}
-
 // Splash Screen - First screen
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -579,7 +515,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final response = await http.get(
         Uri.parse('${Environment.apiBase}/api/admin/splash?adminId=${adminId}&appId=${ApiConfig.appId}'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (mounted) {
@@ -599,7 +535,7 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
     } catch (e) {
-      print('Error fetching app name: ${e}');
+      print('Error fetching app name: $e');
       // If admin ID not found, show default and let user configure
       if (mounted) {
         setState(() {
@@ -607,9 +543,9 @@ class _SplashScreenState extends State<SplashScreen> {
         });
       }
     }
-    
+
     await Future.delayed(const Duration(seconds: 3));
-    
+
     if (mounted) {
       Navigator.pushReplacement(
         context,
@@ -710,7 +646,7 @@ class _SignInPageState extends State<SignInPage> {
           'appId': ApiConfig.appId,
         }),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
@@ -741,7 +677,7 @@ class _SignInPageState extends State<SignInPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign in failed: \${e.toString().replaceAll("Exception: ", "")}'),
+            content: Text('Sign in failed: ${e.toString().replaceAll("Exception: ", "")}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -871,7 +807,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   bool _validateEmail(String email) {
-    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}$').hasMatch(email);
+    return RegExp(r'^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$').hasMatch(email);
   }
 
   bool _validatePhone(String phone) {
@@ -970,7 +906,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed: 2.718281828459045'),
+            content: Text('Failed: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1008,77 +944,75 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
-              TextField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(
-                  labelText: 'First Name',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                textCapitalization: TextCapitalization.words,
+            TextField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(
+                labelText: 'First Name',
+                prefixIcon: Icon(Icons.person),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Last Name',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-                textCapitalization: TextCapitalization.words,
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(
+                labelText: 'Last Name',
+                prefixIcon: Icon(Icons.person_outline),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: Icon(Icons.phone),
-                  hintText: '10 digit number',
-                ),
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                prefixIcon: Icon(Icons.phone),
+                hintText: '10 digit number',
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email ID',
-                  prefixIcon: Icon(Icons.email),
-                ),
-                keyboardType: TextInputType.emailAddress,
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email ID',
+                prefixIcon: Icon(Icons.email),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: const Icon(Icons.lock),
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                prefixIcon: const Icon(Icons.lock),
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 ),
-                obscureText: _obscurePassword,
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _createAccount,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Create Account', style: TextStyle(fontSize: 16)),
+              obscureText: _obscurePassword,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _createAccount,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-            ],
-          ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('Create Account', style: TextStyle(fontSize: 16)),
+            ),
+          ],
         ),
       ),
     );
@@ -1107,6 +1041,11 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _dynamicStoreInfo = {};
   Map<String, dynamic> _dynamicDesignSettings = {};
   Color _pageBackgroundColor = Colors.white;
+  
+  // Real-time sync
+  final DynamicAppSync _appSync = DynamicAppSync();
+  StreamSubscription? _updateSubscription;
+  Map<String, int> _productQuantities = {};
 
   @override
   void initState() {
@@ -1115,15 +1054,38 @@ class _HomePageState extends State<HomePage> {
     _dynamicProductCards = List.from(productCards); // Fallback to static data
     _filteredProducts = List.from(_dynamicProductCards);
     _loadDynamicData();
+    startRealTimeUpdates();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _updateSubscription?.cancel();
+    _appSync.dispose();
     super.dispose();
   }
 
-  // Real-time updates removed - app updates dynamically via WebSocket
+  // Real-time updates with WebSocket
+  void startRealTimeUpdates() async {
+    final adminId = await AdminManager.getCurrentAdminId();
+    if (adminId != null) {
+      _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
+
+      _updateSubscription = _appSync.updates.listen((update) {
+        if (!mounted) return;
+
+        final type = update['type']?.toString().toLowerCase();
+        print('📱 Received real-time update: $type');
+
+        switch (type) {
+          case 'home-page':
+          case 'dynamic-update':
+            _loadDynamicData();
+            break;
+        }
+      });
+    }
+  }
 
   Future<void> _loadDynamicData() async {
     setState(() => _isLoading = true);
@@ -1139,7 +1101,7 @@ class _HomePageState extends State<HomePage> {
       // Get dynamic admin ID
       final adminId = await AdminManager.getCurrentAdminId();
       print('🔍 Home page using admin ID: ${adminId}');
-      
+
       final response = await http.get(
         Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
         headers: {'Content-Type': 'application/json'},
@@ -1176,7 +1138,7 @@ class _HomePageState extends State<HomePage> {
               }
             }
           }
-          
+
           // Sort widgets to ensure HeaderWidget appears first
           extractedWidgets.sort((a, b) {
             bool aIsHeader = a['name'] == 'HeaderWidget';
@@ -1198,14 +1160,12 @@ class _HomePageState extends State<HomePage> {
             _dynamicStoreInfo = storeInfo;
             _dynamicDesignSettings = designSettings;
             _pageBackgroundColor = _colorFromHex(pageProps['backgroundColor']?.toString()) ?? Colors.white;
-            _isLoading = false;
           });
           print('✅ Loaded ${_dynamicProductCards.length} products from backend');
         }
       }
     } catch (e) {
       print('❌ Error loading dynamic data: $e');
-      setState(() => _isLoading = false);
     }
   }
 
@@ -1301,17 +1261,15 @@ class _HomePageState extends State<HomePage> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
-            children: (
-              _homeWidgets.isNotEmpty
-                  ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
-                  : <Widget>[
-                      _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
-                    ]
-            ),
+            children: (_homeWidgets.isNotEmpty
+                ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
+                : <Widget>[
+                    _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
+                  ]),
           ),
         ),
       ),
@@ -1351,8 +1309,8 @@ class _HomePageState extends State<HomePage> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
-              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center : 
-                           textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
+              mainAxisAlignment: textAlign == 'center' ? MainAxisAlignment.center :
+                               textAlign == 'right' ? MainAxisAlignment.end : MainAxisAlignment.start,
               children: [
                 if (textAlign != 'right')
                   (logoAsset.isNotEmpty
@@ -1373,7 +1331,7 @@ class _HomePageState extends State<HomePage> {
                 if (textAlign != 'right') const SizedBox(width: 6),
                 Text(
                   appName,
-                  textAlign: textAlign == 'center' ? TextAlign.center : 
+                  textAlign: textAlign == 'center' ? TextAlign.center :
                            textAlign == 'right' ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
                     color: textColor,
@@ -1740,10 +1698,10 @@ class _HomePageState extends State<HomePage> {
         final autoPlayInterval = int.tryParse(props['autoPlayInterval']?.toString() ?? '3') ?? 3;
         final showIndicators = props['showIndicators'] ?? true;
         final enableInfiniteScroll = true;
-        
+
         // Use dynamic slider images from API like web preview
         List<Map<String, dynamic>> sliderImages = [];
-        
+
         // Find ImageSliderWidget in dynamic home widgets and extract sliderImages
         if (_homeWidgets.isNotEmpty) {
           for (var widget in _homeWidgets) {
@@ -1756,7 +1714,7 @@ class _HomePageState extends State<HomePage> {
             }
           }
         }
-        
+
         // Fallback to static props if no dynamic images found
         if (sliderImages.isEmpty && props['sliderImages'] != null) {
           sliderImages = List<Map<String, dynamic>>.from(props['sliderImages']);
@@ -1987,49 +1945,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Load dynamic store data from backend
-  Future<Map<String, dynamic>> _loadDynamicStoreData() async {
-    try {
-      final adminId = await AdminManager.getCurrentAdminId();
-      final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          // Extract store info from the response
-          final storeInfo = data['storeInfo'] ?? {};
-          final designSettings = data['designSettings'] ?? {};
-          
-          return {
-            'storeName': data['shopName'] ?? storeInfo['storeName'] ?? 'My Store',
-            'address': storeInfo['address'] ?? '123 Main St',
-            'email': storeInfo['email'] ?? 'support@example.com',
-            'phone': storeInfo['phone'] ?? '(123) 456-7890',
-            'headerColor': designSettings['headerColor'] ?? '#4fb322',
-            'bannerText': designSettings['bannerText'] ?? 'Welcome to our store!',
-            'bannerButtonText': designSettings['bannerButtonText'] ?? 'Shop Now',
-          };
-        }
-      }
-    } catch (e) {
-      print('Error loading store data: 2.718281828459045');
-    }
-    
-    // Return default values if API fails
-    return {
-      'storeName': 'My Store',
-      'address': '123 Main St',
-      'email': 'support@example.com',
-      'phone': '(123) 456-7890',
-      'headerColor': '#4fb322',
-      'bannerText': 'Welcome to our store!',
-      'bannerButtonText': 'Shop Now',
-    };
-  }
-
   // Build dynamic product grid
   Widget _buildDynamicProductGrid({Map<String, dynamic>? styleProps}) {
     final products = _searchQuery.isEmpty ? _dynamicProductCards : _filteredProducts;
@@ -2074,40 +1989,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Load dynamic products from backend
-  Future<List<Map<String, dynamic>>> _loadDynamicProducts() async {
-    try {
-      final adminId = await AdminManager.getCurrentAdminId();
-      final response = await http.get(
-        Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true && data['widgets'] != null) {
-          // Extract product data from widgets
-          List<Map<String, dynamic>> products = [];
-          
-          for (var widget in data['widgets']) {
-            if (widget['name'] == 'ProductGridWidget' || 
-                widget['name'] == 'Catalog View Card' ||
-                widget['name'] == 'Product Detail Card') {
-              final productCards = widget['properties']?['productCards'] ?? [];
-              products.addAll(List<Map<String, dynamic>>.from(productCards));
-            }
-          }
-          
-          return products;
-        }
-      }
-    } catch (e) {
-      print('Error loading products: 2.718281828459045');
-    }
-    
-    return [];
-  }
-
   // Quantity management methods
   int _getProductQuantity(String productId) {
     return _productQuantities[productId] ?? 1;
@@ -2131,14 +2012,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  int _getTotalCartQuantity() {
-    return _productQuantities.values.fold(0, (sum, quantity) => sum + quantity);
-  }
-
-  bool _canAddToCart() {
-    return _getTotalCartQuantity() < 10;
-  }
-
   // Build individual product card
   Widget _buildProductCard(Map<String, dynamic> product, int index, {Map<String, dynamic>? styleProps}) {
     final String productId = 'product_' + index.toString();
@@ -2149,13 +2022,13 @@ class _HomePageState extends State<HomePage> {
     final Color borderColor = _colorFromHex(props['borderColor']?.toString()) ?? Colors.transparent;
     final Color priceColor = _colorFromHex(props['priceColor']?.toString()) ?? Colors.blue;
     final Color discountBadgeColor = _colorFromHex(props['discountBadgeColor']?.toString()) ?? Colors.redAccent;
-    
+
     // Try multiple possible price field names
     final String? priceField1 = product['price']?.toString();
     final String? priceField2 = product['basePrice']?.toString();
     final String? priceField3 = product['currentPrice']?.toString();
     final String? priceField4 = product['productPrice']?.toString();
-    
+
     final String rawPrice = priceField1 ?? priceField2 ?? priceField3 ?? priceField4 ?? '99.99';
     final double basePrice = PriceUtils.parsePrice(rawPrice);
     final String currencySymbol = _currencySymbolForProduct(product);
@@ -2168,22 +2041,11 @@ class _HomePageState extends State<HomePage> {
         : (manualDiscountPrice > 0 ? manualDiscountPrice : basePrice);
     final bool hasDiscount = hasPercentDiscount || (manualDiscountPrice > 0 && manualDiscountPrice < basePrice);
     final String? image = product['imageAsset'] ?? product['image'];
-    final String rating = product['rating']?.toString() ?? '4.0';
     final int quantityAvailable = int.tryParse((product['quantity'] ?? '10').toString()) ?? 10;
     final bool isSoldOut = quantityAvailable <= 0;
-    final String discountLabel;
-    if (hasPercentDiscount) {
-      discountLabel = '0% OFF';
-    } else {
-      discountLabel = 'OFFER';
-    }
+    final String discountLabel = hasPercentDiscount ? '${badgeDiscountPercent.toStringAsFixed(0)}% OFF' : 'OFFER';
+    final String stockLabel = isSoldOut ? 'SOLD OUT' : 'In stock: $quantityAvailable';
     
-    final String stockLabel;
-    if (isSoldOut) {
-      stockLabel = 'SOLD OUT';
-    } else {
-      stockLabel = 'In stock: 0';
-    }
     final bool isInWishlist = _wishlistManager.isInWishlist(productId);
 
     return Container(
@@ -2281,6 +2143,38 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                  // Wishlist button
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: IconButton(
+                      onPressed: () {
+                        if (isInWishlist) {
+                          _wishlistManager.removeItem(productId);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Removed from wishlist')),
+                          );
+                        } else {
+                          _wishlistManager.addItem(WishlistItem(
+                            id: productId,
+                            name: productName,
+                            price: basePrice,
+                            discountPrice: effectivePrice,
+                            image: image,
+                            currencySymbol: currencySymbol,
+                          ));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Added to wishlist')),
+                          );
+                        }
+                        setState(() {});
+                      },
+                      icon: Icon(
+                        isInWishlist ? Icons.favorite : Icons.favorite_border,
+                        color: isInWishlist ? Colors.red : Colors.grey,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2311,7 +2205,7 @@ class _HomePageState extends State<HomePage> {
                         Row(
                           children: [
                             Text(
-                              currencySymbol + effectivePrice.toStringAsFixed(2),
+                              '$currencySymbol${effectivePrice.toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -2321,7 +2215,7 @@ class _HomePageState extends State<HomePage> {
                             const SizedBox(width: 4),
                             if (hasDiscount)
                               Text(
-                                currencySymbol + basePrice.toStringAsFixed(2),
+                                '$currencySymbol${basePrice.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontSize: 11,
                                   decoration: TextDecoration.lineThrough,
@@ -2346,12 +2240,46 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 );
                               }
-                              return SizedBox.shrink();
+                              return const SizedBox.shrink();
                             },
                           ),
                       ],
                     ),
                     const SizedBox(height: 4),
+                    // Add to cart button
+                    if (!isSoldOut)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final cartItem = CartItem(
+                              id: productId,
+                              name: productName,
+                              price: basePrice,
+                              discountPrice: effectivePrice,
+                              image: image,
+                              currencySymbol: currencySymbol,
+                              quantity: _getProductQuantity(productId),
+                            );
+                            _cartManager.addItem(cartItem);
+                            setState(() {
+                              _cartNotificationCount += 1;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Added to cart')),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Add to Cart', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -2362,29 +2290,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Helper methods for social sharing
-  void _shareToPlatform(String platform, String link, String text) {
-    // Simple implementation - in real app would use url_launcher or share_plus
-    print('Share to ' + platform + ': ' + link + ' with text: ' + text);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Sharing to ' + platform + '...')),
-    );
-  }
-
-  void _copyShareLink(String link) {
-    // Simple implementation - in real app would use clipboard
-    print('Copy link: ' + link);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard!')),
-    );
-  }
-
   // Helper method to convert hex color to Color
   Color _colorFromHex(String? hexColor) {
     if (hexColor == null || hexColor.isEmpty) return Colors.blue;
-    
+
     String localFormattedColor = hexColor.toUpperCase().replaceAll('#', '');
-    
+
     if (localFormattedColor.length == 6) {
       localFormattedColor = 'FF' + localFormattedColor;
     } else if (localFormattedColor.length == 8) {
@@ -2392,11 +2303,11 @@ class _HomePageState extends State<HomePage> {
     } else {
       return Colors.blue;
     }
-    
+
     try {
       return Color(int.parse('0x' + localFormattedColor));
     } catch (e) {
-      print('Invalid color: ' + hexColor);
+      print('Invalid color: $hexColor');
       return Colors.blue;
     }
   }
@@ -2457,14 +2368,14 @@ class _HomePageState extends State<HomePage> {
                                     : const Icon(Icons.image),
                               ),
                               const SizedBox(width: 12),
-                              Expanded( 
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                                     // Show current price (effective price)
                                     Text(
-                                      PriceUtils.formatPrice(item.effectivePrice),
+                                      PriceUtils.formatPrice(item.effectivePrice, currency: item.currencySymbol),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -2474,7 +2385,7 @@ class _HomePageState extends State<HomePage> {
                                     // Show original price if there's a discount
                                     if (item.discountPrice > 0 && item.price != item.discountPrice)
                                       Text(
-                                        PriceUtils.formatPrice(item.price),
+                                        PriceUtils.formatPrice(item.price, currency: item.currencySymbol),
                                         style: TextStyle(
                                           fontSize: 14,
                                           decoration: TextDecoration.lineThrough,
@@ -2604,7 +2515,7 @@ class _HomePageState extends State<HomePage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Discount', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                              Text('-' + PriceUtils.formatPrice(_cartManager.totalDiscount, currency: _cartManager.displayCurrencySymbol), style: const TextStyle(fontSize: 14, color: Colors.green)),
+                              Text('-${PriceUtils.formatPrice(_cartManager.totalDiscount, currency: _cartManager.displayCurrencySymbol)}', style: const TextStyle(fontSize: 14, color: Colors.green)),
                             ],
                           ),
                         ),
@@ -2662,6 +2573,26 @@ class _HomePageState extends State<HomePage> {
               ],
             );
         },
+      ),
+    );
+  }
+
+  void _handleBuyNow() {
+    // Placeholder for buy now logic
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Order Placed!'),
+        content: const Text('Thank you for your purchase. This is a demo app.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _cartManager.clear();
+              Navigator.pop(context);
+            },
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -2740,6 +2671,7 @@ class _HomePageState extends State<HomePage> {
                         IconButton(
                           onPressed: () {
                             _wishlistManager.removeItem(item.id);
+                            setState(() {});
                           },
                           icon: const Icon(Icons.delete, color: Colors.red),
                         ),
@@ -2761,7 +2693,8 @@ class _HomePageState extends State<HomePage> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          children: [            Center(
+          children: [
+            Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2790,10 +2723,10 @@ class _HomePageState extends State<HomePage> {
                       final userData = snapshot.data ?? {};
                       final firstName = userData['firstName'] ?? '';
                       final lastName = userData['lastName'] ?? '';
-                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty) 
+                      final displayName = (firstName.isNotEmpty && lastName.isNotEmpty)
                           ? '$firstName $lastName'
                           : (firstName.isNotEmpty ? firstName : (lastName.isNotEmpty ? lastName : 'User'));
-                      
+
                       return Text(
                         displayName,
                         style: const TextStyle(
@@ -2830,7 +2763,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-            ),          ],
+            ),
+          ],
         ),
       ),
     );
@@ -2879,44 +2813,8 @@ class _HomePageState extends State<HomePage> {
       final userProfile = await apiService.getUserProfile();
       return userProfile;
     } catch (e) {
-      print('Error fetching user profile: 2.718281828459045');
+      print('Error fetching user profile: $e');
       return {};
     }
   }
-
 }
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      currentIndex: _currentPageIndex,
-      onTap: _onItemTapped,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.blue,
-      unselectedItemColor: Colors.grey,
-      items: [
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_wishlistManager.items.length}'),
-            isLabelVisible: _wishlistManager.items.length > 0,
-            child: const Icon(Icons.favorite),
-          ),
-          label: 'Wishlist',
-        ),
-        BottomNavigationBarItem(
-          icon: Badge(
-            label: Text('${_cartManager.items.length}'),
-            isLabelVisible: _cartManager.items.length > 0,
-            child: const Icon(Icons.shopping_cart),
-          ),
-          label: 'Cart',
-        ),
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.person),
-          label: 'Profile',
-        ),
-      ],
-    );
-  }
