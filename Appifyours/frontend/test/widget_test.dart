@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 
 
 
+
+
+
+
 import 'package:flutter_test/flutter_test.dart';
+
+
+
+
 
 
 
@@ -14,7 +22,19 @@ import 'package:appifyours/main.dart';
 
 
 
+
+
+
+
+
+
+
+
 void main() {
+
+
+
+
 
 
 
@@ -22,7 +42,15 @@ void main() {
 
 
 
+
+
+
+
     await tester.pumpWidget(
+
+
+
+
 
 
 
@@ -30,11 +58,23 @@ void main() {
 
 
 
+
+
+
+
         home: MyApp(),
 
 
 
+
+
+
+
       ),
+
+
+
+
 
 
 
@@ -46,11 +86,27 @@ void main() {
 
 
 
+
+
+
+
+
+
+
+
     expect(find.byType(MyApp), findsOneWidget);
 
 
 
+
+
+
+
   });
+
+
+
+
 
 
 
