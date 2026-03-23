@@ -6,7 +6,19 @@
 
 
 
+
+
+
+
+
+
+
+
 ##############################################################################
+
+
+
+
 
 
 
@@ -14,7 +26,19 @@
 
 
 
+
+
+
+
 ##############################################################################
+
+
+
+
+
+
+
+
 
 
 
@@ -26,7 +50,15 @@
 
 
 
+
+
+
+
 SAVED="`pwd`"
+
+
+
+
 
 
 
@@ -34,7 +66,15 @@ cd "`dirname "$0"`" || exit
 
 
 
+
+
+
+
 APP_HOME="`pwd -P`"
+
+
+
+
 
 
 
@@ -46,7 +86,19 @@ cd "$SAVED" || exit
 
 
 
+
+
+
+
+
+
+
+
 APP_NAME="Gradle"
+
+
+
+
 
 
 
@@ -58,7 +110,19 @@ APP_BASE_NAME=${0##*/}
 
 
 
+
+
+
+
+
+
+
+
 # Add default JVM options here
+
+
+
+
 
 
 
@@ -70,7 +134,19 @@ DEFAULT_JVM_OPTS=""
 
 
 
+
+
+
+
+
+
+
+
 # Use the maximum available, or set MAX_FD != -1 to use that value
+
+
+
+
 
 
 
@@ -82,7 +158,19 @@ MAX_FD=maximum
 
 
 
+
+
+
+
+
+
+
+
 warn() {
+
+
+
+
 
 
 
@@ -90,7 +178,19 @@ warn() {
 
 
 
+
+
+
+
 } >&2
+
+
+
+
+
+
+
+
 
 
 
@@ -102,7 +202,15 @@ die() {
 
 
 
+
+
+
+
     echo
+
+
+
+
 
 
 
@@ -110,11 +218,23 @@ die() {
 
 
 
+
+
+
+
     echo
 
 
 
+
+
+
+
     exit 1
+
+
+
+
 
 
 
@@ -126,7 +246,19 @@ die() {
 
 
 
+
+
+
+
+
+
+
+
 # OS specific support (must be 'true' or 'false')
+
+
+
+
 
 
 
@@ -134,7 +266,15 @@ cygwin=false
 
 
 
+
+
+
+
 msys=false
+
+
+
+
 
 
 
@@ -142,7 +282,15 @@ darwin=false
 
 
 
+
+
+
+
 nonstop=false
+
+
+
+
 
 
 
@@ -150,7 +298,15 @@ case "`uname`" in
 
 
 
+
+
+
+
 CYGWIN*)
+
+
+
+
 
 
 
@@ -158,7 +314,15 @@ CYGWIN*)
 
 
 
+
+
+
+
     ;;
+
+
+
+
 
 
 
@@ -166,11 +330,23 @@ Darwin*)
 
 
 
+
+
+
+
     darwin=true
 
 
 
+
+
+
+
     ;;
+
+
+
+
 
 
 
@@ -178,11 +354,23 @@ MSYS* | MINGW*)
 
 
 
+
+
+
+
     msys=true
 
 
 
+
+
+
+
     ;;
+
+
+
+
 
 
 
@@ -190,7 +378,15 @@ NONSTOP*)
 
 
 
+
+
+
+
     nonstop=true
+
+
+
+
 
 
 
@@ -198,7 +394,19 @@ NONSTOP*)
 
 
 
+
+
+
+
 esac
+
+
+
+
+
+
+
+
 
 
 
@@ -214,7 +422,19 @@ CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
 
 
+
+
+
+
+
+
+
+
 # Determine the Java command to use to start the JVM
+
+
+
+
 
 
 
@@ -222,7 +442,15 @@ if [ -n "$JAVA_HOME" ]; then
 
 
 
+
+
+
+
     if [ -x "$JAVA_HOME/jre/sh/java" ]; then
+
+
+
+
 
 
 
@@ -230,7 +458,15 @@ if [ -n "$JAVA_HOME" ]; then
 
 
 
+
+
+
+
     else
+
+
+
+
 
 
 
@@ -238,11 +474,23 @@ if [ -n "$JAVA_HOME" ]; then
 
 
 
+
+
+
+
     fi
 
 
 
+
+
+
+
     if [ ! -x "$JAVACMD" ]; then
+
+
+
+
 
 
 
@@ -254,7 +502,19 @@ if [ -n "$JAVA_HOME" ]; then
 
 
 
+
+
+
+
+
+
+
+
 Please set the JAVA_HOME variable in your environment to match the
+
+
+
+
 
 
 
@@ -262,7 +522,15 @@ location of your Java installation."
 
 
 
+
+
+
+
     fi
+
+
+
+
 
 
 
@@ -270,7 +538,15 @@ else
 
 
 
+
+
+
+
     JAVACMD=java
+
+
+
+
 
 
 
@@ -282,7 +558,19 @@ else
 
 
 
+
+
+
+
+
+
+
+
 Please set the JAVA_HOME variable in your environment to match the
+
+
+
+
 
 
 
@@ -290,7 +578,19 @@ location of your Java installation."
 
 
 
+
+
+
+
 fi
+
+
+
+
+
+
+
+
 
 
 
@@ -302,11 +602,23 @@ fi
 
 
 
+
+
+
+
 if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
     case $MAX_FD in
+
+
+
+
 
 
 
@@ -314,7 +626,15 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
         MAX_FD=`ulimit -H -n` ||
+
+
+
+
 
 
 
@@ -322,11 +642,23 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
         ;;
 
 
 
+
+
+
+
     esac
+
+
+
+
 
 
 
@@ -334,7 +666,15 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
     '' | soft) : ;;
+
+
+
+
 
 
 
@@ -342,7 +682,15 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
         ulimit -n "$MAX_FD" ||
+
+
+
+
 
 
 
@@ -350,7 +698,15 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
         ;;
+
+
+
+
 
 
 
@@ -358,7 +714,19 @@ if ! "$cygwin" && ! "$darwin" && ! "$nonstop"; then
 
 
 
+
+
+
+
 fi
+
+
+
+
+
+
+
+
 
 
 
@@ -370,7 +738,15 @@ fi
 
 
 
+
+
+
+
 if "$cygwin" || "$msys"; then
+
+
+
+
 
 
 
@@ -378,11 +754,23 @@ if "$cygwin" || "$msys"; then
 
 
 
+
+
+
+
     CLASSPATH=`cygpath --path --mixed "$CLASSPATH"`
 
 
 
+
+
+
+
     JAVACMD=`cygpath --unix "$JAVACMD"`
+
+
+
+
 
 
 
@@ -394,11 +782,27 @@ fi
 
 
 
+
+
+
+
+
+
+
+
 # Execute Gradle
 
 
 
+
+
+
+
 exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "-Dorg.gradle.appname=$APP_BASE_NAME" -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+
+
+
+
 
 
 
