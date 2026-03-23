@@ -2,7 +2,15 @@
 
 
 
+
+
+
+
 <resources>
+
+
+
+
 
 
 
@@ -10,11 +18,23 @@
 
 
 
+
+
+
+
         <item name="android:windowBackground">@drawable/launch_background</item>
 
 
 
+
+
+
+
     </style>
+
+
+
+
 
 
 
@@ -22,11 +42,27 @@
 
 
 
+
+
+
+
         <item name="android:windowBackground">?android:colorBackground</item>
 
 
 
+
+
+
+
     </style>
+
+
+
+
+
+
+
+
 
 
 
@@ -38,7 +74,15 @@
 
 
 
+
+
+
+
 </resources>
+
+
+
+
 
 
 
