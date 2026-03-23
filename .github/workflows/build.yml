@@ -6,7 +6,19 @@ name: Flutter Build
 
 
 
+
+
+
+
+
+
+
+
 on:
+
+
+
+
 
 
 
@@ -14,7 +26,15 @@ on:
 
 
 
+
+
+
+
     branches: [ main, master ]
+
+
+
+
 
 
 
@@ -22,7 +42,15 @@ on:
 
 
 
+
+
+
+
     branches: [ main, master ]
+
+
+
+
 
 
 
@@ -34,7 +62,19 @@ on:
 
 
 
+
+
+
+
+
+
+
+
 jobs:
+
+
+
+
 
 
 
@@ -42,7 +82,15 @@ jobs:
 
 
 
+
+
+
+
     runs-on: ubuntu-latest
+
+
+
+
 
 
 
@@ -54,11 +102,27 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
     steps:
 
 
 
+
+
+
+
       - name: Checkout code
+
+
+
+
 
 
 
@@ -70,7 +134,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Set up JDK 17
+
+
+
+
 
 
 
@@ -78,11 +154,23 @@ jobs:
 
 
 
+
+
+
+
         with:
 
 
 
+
+
+
+
           java-version: '17'
+
+
+
+
 
 
 
@@ -94,7 +182,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Setup Android SDK
+
+
+
+
 
 
 
@@ -106,7 +206,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Set up Flutter
+
+
+
+
 
 
 
@@ -114,7 +226,15 @@ jobs:
 
 
 
+
+
+
+
         with:
+
+
+
+
 
 
 
@@ -122,11 +242,23 @@ jobs:
 
 
 
+
+
+
+
           channel: 'stable'
 
 
 
+
+
+
+
           cache: true
+
+
+
+
 
 
 
@@ -138,7 +270,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Verify Flutter installation
+
+
+
+
 
 
 
@@ -150,7 +294,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Accept Android licenses
+
+
+
+
 
 
 
@@ -162,7 +318,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Navigate to frontend directory
+
+
+
+
 
 
 
@@ -174,7 +342,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Install dependencies
+
+
+
+
 
 
 
@@ -182,7 +362,15 @@ jobs:
 
 
 
+
+
+
+
           cd Appifyours/frontend
+
+
+
+
 
 
 
@@ -194,7 +382,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Analyze code (optional)
+
+
+
+
 
 
 
@@ -202,7 +402,15 @@ jobs:
 
 
 
+
+
+
+
           cd Appifyours/frontend
+
+
+
+
 
 
 
@@ -210,7 +418,19 @@ jobs:
 
 
 
+
+
+
+
         continue-on-error: true
+
+
+
+
+
+
+
+
 
 
 
@@ -222,7 +442,19 @@ jobs:
 
 
 
+
+
+
+
         run: chmod +x Appifyours/frontend/android/gradlew
+
+
+
+
+
+
+
+
 
 
 
@@ -234,7 +466,15 @@ jobs:
 
 
 
+
+
+
+
         run: |
+
+
+
+
 
 
 
@@ -242,7 +482,15 @@ jobs:
 
 
 
+
+
+
+
           flutter test --coverage || echo "Tests completed with warnings"
+
+
+
+
 
 
 
@@ -254,7 +502,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Build APK (debug)
+
+
+
+
 
 
 
@@ -262,7 +522,15 @@ jobs:
 
 
 
+
+
+
+
           cd Appifyours/frontend
+
+
+
+
 
 
 
@@ -274,7 +542,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Build APK (release)
+
+
+
+
 
 
 
@@ -282,7 +562,15 @@ jobs:
 
 
 
+
+
+
+
           cd Appifyours/frontend
+
+
+
+
 
 
 
@@ -294,7 +582,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Build AAB (release)
+
+
+
+
 
 
 
@@ -302,7 +602,15 @@ jobs:
 
 
 
+
+
+
+
           cd Appifyours/frontend
+
+
+
+
 
 
 
@@ -314,7 +622,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: List build outputs
+
+
+
+
 
 
 
@@ -322,7 +642,15 @@ jobs:
 
 
 
+
+
+
+
           echo "Debug APK:"
+
+
+
+
 
 
 
@@ -330,7 +658,15 @@ jobs:
 
 
 
+
+
+
+
           echo "Release outputs:"
+
+
+
+
 
 
 
@@ -342,7 +678,19 @@ jobs:
 
 
 
+
+
+
+
+
+
+
+
       - name: Upload APK (debug)
+
+
+
+
 
 
 
@@ -350,7 +698,15 @@ jobs:
 
 
 
+
+
+
+
         with:
+
+
+
+
 
 
 
@@ -358,11 +714,27 @@ jobs:
 
 
 
+
+
+
+
           path: Appifyours/frontend/build/app/outputs/flutter-apk/app-debug.apk
 
 
 
+
+
+
+
           if-no-files-found: warn
+
+
+
+
+
+
+
+
 
 
 
@@ -374,7 +746,15 @@ jobs:
 
 
 
+
+
+
+
         uses: actions/upload-artifact@v4
+
+
+
+
 
 
 
@@ -382,7 +762,15 @@ jobs:
 
 
 
+
+
+
+
           name: release-apk
+
+
+
+
 
 
 
@@ -390,7 +778,19 @@ jobs:
 
 
 
+
+
+
+
           if-no-files-found: warn
+
+
+
+
+
+
+
+
 
 
 
@@ -402,7 +802,15 @@ jobs:
 
 
 
+
+
+
+
         uses: actions/upload-artifact@v4
+
+
+
+
 
 
 
@@ -410,7 +818,15 @@ jobs:
 
 
 
+
+
+
+
           name: release-aab
+
+
+
+
 
 
 
@@ -418,7 +834,15 @@ jobs:
 
 
 
+
+
+
+
           if-no-files-found: warn
+
+
+
+
 
 
 
