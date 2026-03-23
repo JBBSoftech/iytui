@@ -2,7 +2,15 @@
 
 
 
+
+
+
+
   "project_info": {
+
+
+
+
 
 
 
@@ -10,7 +18,15 @@
 
 
 
+
+
+
+
     "project_id": "dummy-project",
+
+
+
+
 
 
 
@@ -18,7 +34,15 @@
 
 
 
+
+
+
+
   },
+
+
+
+
 
 
 
@@ -26,7 +50,15 @@
 
 
 
+
+
+
+
     {
+
+
+
+
 
 
 
@@ -34,7 +66,15 @@
 
 
 
+
+
+
+
         "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
+
+
+
+
 
 
 
@@ -42,7 +82,15 @@
 
 
 
+
+
+
+
       },
+
+
+
+
 
 
 
@@ -50,7 +98,15 @@
 
 
 
+
+
+
+
       "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+
+
+
+
 
 
 
@@ -58,11 +114,23 @@
 
 
 
+
+
+
+
   ],
 
 
 
+
+
+
+
   "configuration_version": "1"
+
+
+
+
 
 
 
