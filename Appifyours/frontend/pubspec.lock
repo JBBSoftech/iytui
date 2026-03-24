@@ -6,7 +6,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # See https://dart.dev/tools/pub/glossary#lockfile
+
+
+
+
+
+
+
+
 
 
 
@@ -30,7 +46,31 @@ packages:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 sdks:
+
+
+
+
+
+
+
+
 
 
 
@@ -46,7 +86,23 @@ sdks:
 
 
 
+
+
+
+
+
+
+
+
   flutter: ">=3.10.0"
+
+
+
+
+
+
+
+
 
 
 
