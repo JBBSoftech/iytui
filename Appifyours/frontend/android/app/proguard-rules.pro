@@ -6,7 +6,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # You can control the set of applied configuration files using the
+
+
+
+
+
+
+
+
 
 
 
@@ -22,6 +38,14 @@
 
 
 
+
+
+
+
+
+
+
+
 #
 
 
@@ -30,7 +54,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # For more details, see
+
+
+
+
+
+
+
+
 
 
 
@@ -54,7 +94,31 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # If your project uses WebView with JS, uncomment the following
+
+
+
+
+
+
+
+
 
 
 
@@ -70,7 +134,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # class:
+
+
+
+
+
+
+
+
 
 
 
@@ -86,7 +166,23 @@
 
 
 
+
+
+
+
+
+
+
+
 #   public *;
+
+
+
+
+
+
+
+
 
 
 
@@ -110,6 +206,22 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Uncomment this to preserve the line number information for
 
 
@@ -118,7 +230,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # debugging stack traces.
+
+
+
+
+
+
+
+
 
 
 
@@ -142,6 +270,22 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # If you keep the line number information, uncomment this to
 
 
@@ -150,7 +294,23 @@
 
 
 
+
+
+
+
+
+
+
+
 # hide the original source file name.
+
+
+
+
+
+
+
+
 
 
 
@@ -174,7 +334,31 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Flutter specific rules
+
+
+
+
+
+
+
+
 
 
 
@@ -190,7 +374,23 @@
 
 
 
+
+
+
+
+
+
+
+
 -keep class io.flutter.plugin.**  { *; }
+
+
+
+
+
+
+
+
 
 
 
@@ -206,7 +406,23 @@
 
 
 
+
+
+
+
+
+
+
+
 -keep class io.flutter.view.**  { *; }
+
+
+
+
+
+
+
+
 
 
 
@@ -222,6 +438,14 @@
 
 
 
+
+
+
+
+
+
+
+
 -keep class io.flutter.plugins.**  { *; }
 
 
@@ -230,7 +454,23 @@
 
 
 
+
+
+
+
+
+
+
+
 -dontwarn io.flutter.embedding.**
+
+
+
+
+
+
+
+
 
 
 
