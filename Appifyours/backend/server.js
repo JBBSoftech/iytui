@@ -164,6 +164,109 @@ router.get('/api/admin/:adminId/users', async (req, res) => {
 
 });
 
+// GET /api/user/profile - Get current user profile from users_create_account
+router.get('/user/profile', auth, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?.userId || req.user?._id || req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'User ID not found in token' 
+      });
+    }
+
+    // Find user in users_create_account collection
+    const user = await UsersCreateAccount.findOne({ 
+      $or: [
+        { _id: userId },
+        { userId: userId },
+        { adminObjectId: userId }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found in users_create_account' 
+      });
+    }
+
+    // Return user profile data
+    const userProfile = {
+      _id: user._id,
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      address: user.address || null,
+      city: user.city || null,
+      state: user.state || null,
+      zip: user.zip || null,
+      country: user.country || null,
+      role: user.role || 'user',
+      createdAt: user.createdAt || null
+    };
+
+    res.status(200).json({
+      success: true,
+      user: userProfile
+    });
+  } catch (error) {
+    console.error('Error fetching user profile from users_create_account:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch user profile', 
+      error: error.message 
+    });
+  }
+});
+
+// GET /api/user/orders - Get user orders
+router.get('/user/orders', auth, async (req, res) => {
+  try {
+    const userId = req.user?.id || req.user?.userId || req.user?._id || req.user?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'User ID not found in token' 
+      });
+    }
+
+    // Find user in users_create_account collection
+    const user = await UsersCreateAccount.findOne({ 
+      $or: [
+        { _id: userId },
+        { userId: userId },
+        { adminObjectId: userId }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    // Return user orders (if orders field exists in schema)
+    const orders = user.orders || [];
+    
+    res.status(200).json({
+      success: true,
+      orders: orders
+    });
+  } catch (error) {
+    console.error('Error fetching user orders:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch user orders', 
+      error: error.message 
+    });
+  }
+});
+
 // Get product by ID
 
 app.get('/api/products/:id', async (req, res) => {
