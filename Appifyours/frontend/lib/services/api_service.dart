@@ -49,44 +49,22 @@ class ApiService {
     const fallback = 'http://127.0.0.1:5000';
     final raw = configured.isEmpty ? fallback : configured;
 
-    // Enhanced URL resolution for both IPv4 and domain support
-    String resolvedUrl = raw;
-    
-    // Ensure URL has proper protocol
-    if (!resolvedUrl.startsWith('http://') && !resolvedUrl.startsWith('https://')) {
-      resolvedUrl = 'http://$resolvedUrl';
+    if (kIsWeb && raw.contains('localhost')) {
+      return raw.replaceFirst('localhost', '127.0.0.1');
     }
-    
-    // For web platform, handle localhost/127.0.0.1 conversion
+
     if (kIsWeb) {
-      if (resolvedUrl.contains('localhost')) {
-        resolvedUrl = resolvedUrl.replaceFirst('localhost', '127.0.0.1');
-      }
-      
-      // Additional web platform check for host compatibility
       final host = Uri.base.host;
       if (host == 'localhost' || host == '127.0.0.1') {
-        final uri = Uri.tryParse(resolvedUrl);
+        final uri = Uri.tryParse(raw);
         final configuredHost = uri?.host ?? '';
         if (configuredHost.isNotEmpty && configuredHost != host) {
-          // If configured host is different from current host, use fallback
-          resolvedUrl = fallback;
+          return fallback;
         }
       }
     }
-    
-    // Validate and clean the URL
-    final uri = Uri.tryParse(resolvedUrl);
-    if (uri == null || !uri.hasAuthority) {
-      print('Invalid API base URL: $resolvedUrl, using fallback: $fallback');
-      return fallback;
-    }
-    
-    // Ensure the URL is properly formatted
-    final cleanUrl = '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}';
-    
-    print('Resolved API base URL: $cleanUrl');
-    return cleanUrl;
+
+    return raw;
   }
 
   // Real-time WebSocket connection
