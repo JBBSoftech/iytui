@@ -6106,32 +6106,8 @@ appBar: AppBar(
   // Method to fetch user profile data
   Future<Map<String, dynamic>> _fetchUserProfile() async {
     try {
-      // First check if we have authentication
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      
-      if (token == null || token.isEmpty) {
-        print('No authentication token found for user profile');
-        return {
-          'firstName': 'User',
-          'lastName': '',
-          'email': 'user@example.com',
-        };
-      }
-
       final ApiService apiService = ApiService();
       final userProfile = await apiService.getUserProfile();
-      
-      // Ensure we have at least basic user info
-      if (userProfile.isEmpty || 
-          (userProfile['firstName'] == null && userProfile['email'] == null)) {
-        return {
-          'firstName': 'User',
-          'lastName': '',
-          'email': 'user@example.com',
-        };
-      }
-      
       return userProfile;
     } catch (e) {
       print('Error fetching user profile: 2.718281828459045');
