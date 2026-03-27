@@ -377,27 +377,31 @@ class ApiService {
   // Get user profile
   Future<Map<String, dynamic>> getUserProfile() async {
     try {
+      // First check if we have a valid token
+      final token = await _getToken();
+      if (token == null || token.isEmpty) {
+        throw Exception('No authentication token found. Please login again.');
+      }
+
       final response = await get('/api/user/profile');
-      print('=== DEBUG: Profile API Response ===');
-      print('Status code: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('Decoded data: $data');
 
         // Check if the response contains the user data
         if (data['success'] == true && data['user'] != null) {
-          print('Returning user data: ${data['user']}');
           return data['user'];
+        } else if (data['success'] == false) {
+          throw Exception(data['message'] ?? 'Failed to fetch user profile');
         }
-        print('Returning data directly: $data');
         return data;
+      } else if (response.statusCode == 401) {
+        throw Exception('Session expired. Please login again.');
       } else {
         throw Exception('Failed to fetch user profile: ${response.statusCode}');
       }
     } catch (e) {
       print('Error in getUserProfile: $e');
+      // Re-throw with more context
       throw Exception('Failed to fetch user profile: $e');
     }
   }
