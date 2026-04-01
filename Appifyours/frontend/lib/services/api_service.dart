@@ -1,4 +1,4 @@
-﻿import 'package:http/http.dart' as http;
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart'; // For kIsWeb
@@ -66,15 +66,15 @@ class ApiService {
 
     return raw;
   }
-
+  
   // Real-time WebSocket connection
   IO.Socket? _socket;
   final StreamController<Map<String, dynamic>> _realTimeUpdateController = 
       StreamController<Map<String, dynamic>>.broadcast();
-
+  
   // Stream for real-time updates
   Stream<Map<String, dynamic>> get realTimeUpdates => _realTimeUpdateController.stream;
-
+  
   // Connection status
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -97,7 +97,7 @@ class ApiService {
       final response = await get('/api/user/app-details');
       if (response.statusCode == 200) {
         final dynamic decoded = json.decode(response.body);
-
+        
         // If the response is wrapped in an object
         if (decoded is Map<String, dynamic>) {
           // Adjust 'data' to match your actual API response key
@@ -187,7 +187,7 @@ class ApiService {
         if (imageFile is! Uint8List) {
           throw Exception('Invalid image data for web platform');
         }
-
+        
         multipartFile = http.MultipartFile.fromBytes(
           'photo',
           imageFile,
@@ -198,11 +198,11 @@ class ApiService {
         // For mobile/desktop: imageFile should be File
         print('Platform: Mobile/Desktop');
         print('File path: ${imageFile.path}');
-
+        
         if (imageFile is! File) {
           throw Exception('Invalid image file for mobile platform');
         }
-
+        
         multipartFile = await http.MultipartFile.fromPath(
           'photo',
           imageFile.path,
@@ -236,7 +236,7 @@ class ApiService {
   Future<void> deleteProfilePhoto() async {
     try {
       final response = await delete('/api/user/profile/photo');
-
+      
       if (response.statusCode != 200) {
         final error = json.decode(response.body);
         throw Exception(error['message'] ?? 'Failed to delete photo');
@@ -326,7 +326,7 @@ class ApiService {
     }
 
     http.Response response;
-
+    
     if (body != null) {
       response = await http.delete(
         Uri.parse('$baseUrl$endpoint'),
@@ -380,7 +380,7 @@ class ApiService {
       final response = await get('/api/user/profile');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-
+        
         // Check if the response contains the user data
         if (data['success'] == true && data['user'] != null) {
           return data['user'];
@@ -652,29 +652,29 @@ class ApiService {
     try {
       final userId = await _getUserId();
       print('ApiService: Checking if user has existing shop for User ID: $userId');
-
+      
       final response = await get('/api/shops');
-
+      
       print('ApiService: Shop check response status: ${response.statusCode}');
       print('ApiService: Shop check response body: ${response.body}');
-
+      
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-
+        
         // Check if hasShops field is present (new backend format)
         if (data.containsKey('hasShops')) {
           final bool hasShops = data['hasShops'] ?? false;
           print('ApiService: Backend hasShops field: $hasShops');
           return hasShops;
         }
-
+        
         // Check data array length (current backend format)
         if (data.containsKey('data') && data['data'] is List) {
           final List<dynamic> shops = data['data'];
           print('ApiService: Found ${shops.length} shops for user');
           return shops.isNotEmpty;
         }
-
+        
         print('ApiService: No valid shop data found in response');
         return false;
       } else if (response.statusCode == 404) {
@@ -809,7 +809,7 @@ class ApiService {
       return false;
     }
   }
-
+  
   Future<Map<String, dynamic>?> getDraftInfo() async {
     try {
       final userId = await _getUserId();
@@ -864,7 +864,7 @@ class ApiService {
           final subscription = responseData['subscription'];
           final status = subscription['status']?.toString().toLowerCase();
           print('ApiService: Found current subscription with status: $status');
-
+          
           if (status == 'active') {
             print('ApiService: User has active current subscription');
             return true;
@@ -890,7 +890,7 @@ class ApiService {
         // Handle both response formats
         dynamic responseData = json.decode(responseBody);
         List<dynamic> subscriptions;
-
+        
         if (responseData is Map && responseData['subscriptions'] != null) {
           // Format from save-subscription.js
           subscriptions = responseData['subscriptions'];
@@ -903,16 +903,16 @@ class ApiService {
         }
 
         print('ApiService: Found ${subscriptions.length} subscriptions');
-
+        
         // Check if user has any active subscription
         final now = DateTime.now();
         for (var subscription in subscriptions) {
           print('ApiService: Checking subscription: $subscription');
-
+          
           final status = subscription['status']?.toString().toLowerCase();
-
+          
           print('ApiService: Subscription status: $status');
-
+          
           // If status is active, user has valid subscription
           if (status == 'active' || status == 'approved') {
             // Check end date if available
@@ -934,7 +934,7 @@ class ApiService {
             }
           }
         }
-
+        
         print('ApiService: No active subscription found');
         return false;
       } else {
@@ -951,12 +951,12 @@ class ApiService {
   Future<List<Map<String, dynamic>>> getSubscriptionPlans() async {
     try {
       print('ApiService: Fetching subscription plans');
-
+      
       final response = await getWithoutAuth('/api/subscription-plans');
-
+      
       print('ApiService: Subscription plans response status: ${response.statusCode}');
       print('ApiService: Subscription plans response body: ${response.body}');
-
+      
       if (response.statusCode == 200) {
         final List<dynamic> plans = jsonDecode(response.body);
         print('ApiService: Raw plans data: $plans');
@@ -971,7 +971,7 @@ class ApiService {
       throw Exception('Failed to load subscription plans: $e');
     }
   }
-
+  
   // Get users by admin ID (uses logged-in user's ID as adminId)
   Future<List<Map<String, dynamic>>> getUsersByAdmin() async {
     try {
@@ -1019,6 +1019,7 @@ class ApiService {
     }
   }
 
+
 // Submit support request
   Future<Map<String, dynamic>> submitSupport({
     required String name,
@@ -1028,7 +1029,7 @@ class ApiService {
   }) async {
     try {
       print('Submitting support request from: $name ($email)');
-
+      
       final response = await postWithoutAuth('/api/support', {
         'name': name,
         'email': email,
@@ -1065,21 +1066,22 @@ class ApiService {
     }
   }
 
+  
   // ===== NEW METHODS FOR DYNAMIC FEATURES =====
 
   // Get app name for splash screen
   Future<Map<String, dynamic>> getAppName({String? adminId}) async {
     try {
       print('Getting app name with adminId: $adminId');
-
+      
       // Build URL with adminId parameter
       String url = '$baseUrl/api/admin/splash';
       if (adminId != null && adminId.isNotEmpty) {
         url += '?adminId=$adminId';
       }
-
+      
       final response = await http.get(Uri.parse(url));
-
+      
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
@@ -1100,15 +1102,15 @@ class ApiService {
   Future<Map<String, dynamic>> getFormData({String? adminId}) async {
     try {
       print('Getting form data with adminId: $adminId');
-
+      
       // Build URL with adminId parameter
       String url = '$baseUrl/api/get-form';
       if (adminId != null && adminId.isNotEmpty) {
         url += '?adminId=$adminId';
       }
-
+      
       final response = await http.get(Uri.parse(url));
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('Form data fetched successfully: ${data.keys}');
@@ -1132,7 +1134,7 @@ class ApiService {
   Future<Map<String, dynamic>> getAppInfo() async {
     try {
       print('Getting app info - using baseUrl: $baseUrl');
-
+      
       final response = await http.get(
         Uri.parse('$baseUrl/api/admin/app-info'),
         headers: {
@@ -1190,11 +1192,11 @@ class ApiService {
   }) async {
     try {
       print('Dynamic signup with admin and shop - using baseUrl: $baseUrl');
-
+      
       // First get app info to determine admin ID and shop name if not provided
       String linkedAdminId = adminId ?? '';
       String linkedShopName = shopName ?? '';
-
+      
       if (linkedAdminId.isEmpty || linkedShopName.isEmpty) {
         final appInfoResult = await getAppInfo();
         if (appInfoResult['success'] == true && appInfoResult['data'] != null) {
@@ -1256,13 +1258,13 @@ class ApiService {
   Future<Map<String, dynamic>> getHomeWidgets({String? adminId}) async {
     try {
       print('Getting home widgets with adminId: $adminId');
-
+      
       // Build URL with adminId parameter
       String url = '$baseUrl/api/admin/home';
       if (adminId != null && adminId.isNotEmpty) {
         url += '?adminId=$adminId';
       }
-
+      
       final response = await http.get(Uri.parse(url));
       print('Home widgets response status: ${response.statusCode}');
 
@@ -1585,7 +1587,7 @@ class ApiService {
   Future<GroqResponse> sendMessageToGroq(String prompt) async {
     try {
       final token = await _getToken();
-
+      
       // Make sure to include /api/ in URL
       final response = await http.post(
         Uri.parse('$baseUrl/api/groq/chat'),
@@ -1621,18 +1623,18 @@ class ApiService {
   }
 
   // ===== REAL-TIME WEBSOCKET METHODS =====
-
+  
   // Initialize WebSocket connection for real-time updates
   Future<void> initializeRealTimeUpdates({String? adminId}) async {
     try {
       print('🔌 Initializing real-time WebSocket connection...');
-
+      
       // Dispose existing socket if any
       if (_socket != null) {
         _socket!.disconnect();
         _socket = null;
       }
-
+      
       // Create new socket connection
       _socket = IO.io(
         '$baseUrl/real-time-updates',
@@ -1644,110 +1646,110 @@ class ApiService {
             .setTimeout(30000)
             .build(),
       );
-
+      
       // Set up event listeners
       _setupSocketListeners(adminId: adminId);
-
+      
       // Connect to the real-time updates namespace
       _socket!.connect();
-
+      
       print('📱 WebSocket connection initiated');
     } catch (e) {
       print('❌ Error initializing WebSocket: $e');
     }
   }
-
+  
   // Set up socket event listeners
   void _setupSocketListeners({String? adminId}) {
     if (_socket == null) return;
-
+    
     // Connection event
     _socket!.onConnect((_) {
       print('✅ WebSocket connected successfully');
       _isConnected = true;
-
+      
       // Join admin-specific room for targeted updates
       if (adminId != null && adminId.isNotEmpty) {
         _socket!.emit('join-admin-room', {'adminId': adminId});
         print('📱 Joined admin room: admin-$adminId');
       }
-
+      
       // Test connection
       _socket!.emit('test-connection', {
         'adminId': adminId ?? 'default',
         'timestamp': DateTime.now().toIso8601String(),
       });
     });
-
+    
     // Disconnection event
     _socket!.onDisconnect((_) {
       print('❌ WebSocket disconnected');
       _isConnected = false;
     });
-
+    
     // Room join confirmation
     _socket!.on('room-joined', (data) {
       print('✅ Successfully joined room: $data');
     });
-
+    
     // Test response
     _socket!.on('test-response', (data) {
       print('📡 Test response received: $data');
     });
-
+    
     // Real-time dynamic updates
     _socket!.on('dynamic-update', (data) {
       print('🔄 Real-time update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Admin-specific updates
     _socket!.on('admin-specific-update', (data) {
       print('🎯 Admin-specific update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Splash screen updates
     _socket!.on('splash-screen', (data) {
       print('📱 Splash screen update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Home page updates
     _socket!.on('home-page', (data) {
       print('🏠 Home page update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // App info updates
     _socket!.on('app-info', (data) {
       print('ℹ️ App info update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Test updates
     _socket!.on('test-update', (data) {
       print('🧪 Test update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Configuration updates
     _socket!.on('configuration-update', (data) {
       print('⚙️ Configuration update received: $data');
       _realTimeUpdateController.add(Map<String, dynamic>.from(data));
     });
-
+    
     // Error handling
     _socket!.onConnectError((error) {
       print('❌ WebSocket connection error: $error');
       _isConnected = false;
     });
-
+    
     _socket!.onError((error) {
       print('❌ WebSocket error: $error');
     });
   }
-
+  
   // Disconnect WebSocket
   void disconnectRealTimeUpdates() {
     if (_socket != null) {
@@ -1757,26 +1759,26 @@ class ApiService {
       _isConnected = false;
     }
   }
-
+  
   // Reconnect WebSocket
   Future<void> reconnectRealTimeUpdates({String? adminId}) async {
     disconnectRealTimeUpdates();
     await Future.delayed(Duration(seconds: 1));
     await initializeRealTimeUpdates(adminId: adminId);
   }
-
+  
   // Check connection status
   bool isRealTimeConnected() {
     return _isConnected && _socket != null && _socket!.connected;
   }
-
+  
   // Get current user/admin information
   Future<Map<String, dynamic>> getCurrentUser() async {
     try {
       // Get token from storage
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
-
+      
       if (token == null) {
         return {
           'success': false,
@@ -1791,7 +1793,7 @@ class ApiService {
           'Authorization': 'Bearer $token'
         },
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
@@ -1833,7 +1835,7 @@ class ApiService {
           'testMessage': testMessage ?? 'Testing real-time connection'
         }),
       );
-
+      
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         print('📡 Test update sent successfully');
